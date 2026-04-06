@@ -1,0 +1,17 @@
+{
+  "name": "ee-receipts-downloader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Download e-receipts (Maxima EE) via Playwright with manual Smart-ID confirmation.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/cli.js",
+    "maxima": "node src/cli.js --provider maxima",
+    "lint": "node src/cli.js --help"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
+

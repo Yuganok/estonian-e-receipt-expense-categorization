@@ -1,0 +1,16 @@
+{
+  "name": "e-receipt-ledger-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron shell for e-receipt download + Python pipeline",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^41.1.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1"
+  }
+}

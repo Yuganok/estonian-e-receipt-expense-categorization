@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Local auth/session artifacts
+.auth/
+
+# Local data and generated outputs
+receipts/
+output/
+output_test_unicode/
+.artifacts/
+maxima/
+bank_exports/
+/bank_export.csv
+baseline_run.json
+Документы диплома/
+
+# Environment and secrets
+.env
+.env.local
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+
+# IDE / OS
+.cursor/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Temporary logs and local caches
+*.log
+tmp/
+temp/
+
+# Exclude documentation files for public snapshot (temporary)
+README
+README.*
+**/README
+**/README.*

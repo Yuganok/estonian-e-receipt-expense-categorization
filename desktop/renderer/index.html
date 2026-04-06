@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-Receipt Ledger</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-row">
+      <div>
+        <h1 id="titleApp">E-Receipt Ledger</h1>
+        <p id="subtitleApp" class="subtitle">Tšekkide allalaadimine ja analüüs (Node + Python)</p>
+      </div>
+      <label class="field language-field" for="languageSelect">
+        <span id="labelLanguage">Keel</span>
+        <select id="languageSelect" aria-label="Language">
+          <option value="et">ET</option>
+          <option value="en">EN</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <nav class="page-nav" aria-label="Sections">
+      <button type="button" id="tabData" class="page-tab active">Data Collection</button>
+      <button type="button" id="tabParsing" class="page-tab">Parsing Review</button>
+      <button type="button" id="tabCategorization" class="page-tab">Categorization Review</button>
+      <button type="button" id="tabBaseline" class="page-tab">Baseline & Reporting</button>
+    </nav>
+
+    <section id="pageData" class="page">
+      <section class="card">
+        <h2 id="headingSettings">Seaded</h2>
+        <div class="grid">
+          <label class="field">
+            <span id="labelFromDate">Alguskuupäev</span>
+            <input type="date" id="fromDate" />
+          </label>
+          <label class="field">
+            <span id="labelToDate">Lõppkuupäev</span>
+            <input type="date" id="toDate" />
+          </label>
+          <label class="field span-2">
+            <span id="labelStore">Pood (allalaadimine ja analüüs)</span>
+            <select id="storeSelect" aria-label="Pood">
+              <option id="storeMaximaOption" value="maxima">Maxima</option>
+            </select>
+          </label>
+          <div class="field span-2 bank-row">
+            <label id="labelBankCsv" class="bank-label" for="bankCsvSelect">Panga väljavõte (CSV kaustast <code>bank_exports</code>)</label>
+            <div class="bank-controls">
+              <select id="bankCsvSelect" aria-describedby="bankHint"></select>
+              <button type="button" id="btnRefreshBank" class="btn ghost">Värskenda nimekirja</button>
+            </div>
+            <p id="bankHint" class="hint">Lisa väljavõtte failid projekti juurkausta kausta <code>bank_exports</code>.</p>
+          </div>
+        </div>
+
+        <div class="actions actions-toolbar">
+          <button type="button" id="btnDownload" class="btn primary">Laadi tšekid</button>
+          <button type="button" id="btnPipeline" class="btn primary">Käivita analüüs</button>
+          <button type="button" id="btnBoth" class="btn secondary">Mõlemad sammud</button>
+          <button type="button" id="btnClear" class="btn ghost">Puhasta logi</button>
+        </div>
+      </section>
+
+      <section class="card log-card">
+        <div class="log-header">
+          <h2 id="headingLog">Logi</h2>
+          <button type="button" id="btnToggleLog" class="btn ghost log-toggle">Näita logi</button>
+        </div>
+        <div id="logBody" class="hidden">
+          <pre id="log" class="log" aria-live="polite"></pre>
+        </div>
+      </section>
+    </section>
+
+    <section id="pageParsing" class="page hidden">
+      <section class="card research-card">
+        <div class="research-header">
+          <h2 id="headingResearch">Research Review</h2>
+          <div class="research-actions">
+            <button type="button" id="btnResearchReload" class="btn ghost">Reload research data</button>
+          </div>
+        </div>
+
+        <div class="research-panel">
+          <h3 id="headingParsingReview">Parsing Review</h3>
+          <div class="filter-row">
+            <input id="parseSearch" type="text" placeholder="Search item text..." />
+            <select id="parseFilterKind" aria-label="Parse row filter">
+              <option value="all">All rows</option>
+              <option value="noise">Noise only</option>
+              <option value="deposit">Deposits only</option>
+              <option value="clean">Clean non-deposit</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table cols-parsing" id="tableParsing">
+              <colgroup>
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Store</th>
+                  <th>Receipt</th>
+                  <th>Item text</th>
+                  <th>Gross</th>
+                  <th>Discount</th>
+                  <th>Deposit</th>
+                  <th>Noise</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="pageCategorization" class="page hidden">
+      <section class="card research-card">
+        <div class="research-header">
+          <h2 id="headingCategorizationReview">Categorization Review</h2>
+          <div class="research-actions">
+            <button type="button" id="btnSaveCorrections" class="btn ghost">Save corrections</button>
+          </div>
+        </div>
+        <div class="research-panel">
+          <div class="filter-row">
+            <input id="catSearch" type="text" placeholder="Search categorized items..." />
+            <select id="catFilterKind" aria-label="Category filter">
+              <option value="all">All categories</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table cols-categorized" id="tableCategorized">
+              <colgroup>
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Store</th>
+                  <th>Receipt</th>
+                  <th>Item text</th>
+                  <th>Auto category</th>
+                  <th>Rule/keyword</th>
+                  <th>Manual category</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="pageBaseline" class="page hidden">
+      <section class="card results-card">
+        <h2 id="headingResults">Tulemused</h2>
+        <p id="resultsEmpty" class="results-empty">Käivita analüüs, et näha visualiseeritud tulemusi.</p>
+        <div id="resultsContent" class="results-content hidden">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <p id="kpiLabelTotalSpend" class="kpi-label">Kulud kokku</p>
+              <p id="kpiTotalSpend" class="kpi-value">0 EUR</p>
+            </div>
+            <div class="kpi-card">
+              <p id="kpiLabelReceipts" class="kpi-label">Tšekke kokku</p>
+              <p id="kpiReceipts" class="kpi-value">0</p>
+            </div>
+            <div class="kpi-card">
+              <p id="kpiLabelMatched" class="kpi-label">Pangaga sobitatud</p>
+              <p id="kpiMatched" class="kpi-value">0%</p>
+            </div>
+            <div class="kpi-card">
+              <p id="kpiLabelTopCategory" class="kpi-label">Suurim kategooria</p>
+              <p id="kpiTopCategory" class="kpi-value">-</p>
+            </div>
+          </div>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3 id="chartTitleCategories">Kulude jaotus kategooriate kaupa</h3>
+              <canvas id="categoryChart" height="240"></canvas>
+              <div id="categoryLegend" class="legend"></div>
+            </div>
+            <div class="chart-card">
+              <h3 id="chartTitleMatching">Sobitamise katvus</h3>
+              <canvas id="matchChart" height="240"></canvas>
+              <div id="matchLegend" class="legend"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card research-card">
+        <div class="research-header">
+          <h2 id="headingBaselineComparison">Baseline Comparison</h2>
+          <div class="research-actions">
+            <button type="button" id="btnExportResearch" class="btn secondary">Export research report</button>
+          </div>
+        </div>
+        <div class="research-panel">
+          <div class="baseline-kpis">
+            <div class="kpi-mini"><span id="lblMismatchRate">Mismatch rate</span>: <strong id="kpiMismatchRate">0%</strong></div>
+            <div class="kpi-mini"><span id="lblMixedReceipts">Mixed receipts</span>: <strong id="kpiMixedReceipts">0</strong></div>
+            <div class="kpi-mini"><span id="lblUnmatchedReceipts">Unmatched receipts</span>: <strong id="kpiUnmatchedReceipts">0</strong></div>
+          </div>
+          <div class="source-breakdown-block">
+            <h3 id="headingSourceBreakdown">Category source breakdown</h3>
+            <div id="sourceBreakdownLegend" class="legend"></div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table cols-baseline" id="tableBaseline">
+              <colgroup>
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Receipt</th>
+                  <th>Store</th>
+                  <th>Purchase date</th>
+                  <th>Total</th>
+                  <th>Bank date</th>
+                  <th>Bank amount</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="../node_modules/chart.js/dist/chart.umd.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
