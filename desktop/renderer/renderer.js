@@ -1,14 +1,23 @@
 const logEl = document.getElementById('log');
 const fromDate = document.getElementById('fromDate');
 const toDate = document.getElementById('toDate');
-const bankCsvSelect = document.getElementById('bankCsvSelect');
+const bankCsvPathInput = document.getElementById('bankCsvPath');
 const bankHint = document.getElementById('bankHint');
+const btnPickBankCsv = document.getElementById('btnPickBankCsv');
 const storeSelect = document.getElementById('storeSelect');
+const fullDateFromField = document.getElementById('fullDateFromField');
+const fullDateToField = document.getElementById('fullDateToField');
+const fullStoreField = document.getElementById('fullStoreField');
+const fullBankField = document.getElementById('fullBankField');
+const analysisModeSelect = document.getElementById('analysisModeSelect');
+const singleReceiptRow = document.getElementById('singleReceiptRow');
+const singleReceiptPdfPath = document.getElementById('singleReceiptPdfPath');
+const btnPickSingleReceiptPdf = document.getElementById('btnPickSingleReceiptPdf');
+const singleReceiptStoreInput = document.getElementById('singleReceiptStoreInput');
 const btnDownload = document.getElementById('btnDownload');
 const btnPipeline = document.getElementById('btnPipeline');
 const btnBoth = document.getElementById('btnBoth');
 const btnClear = document.getElementById('btnClear');
-const btnRefreshBank = document.getElementById('btnRefreshBank');
 const btnToggleLog = document.getElementById('btnToggleLog');
 const logBody = document.getElementById('logBody');
 const languageSelect = document.getElementById('languageSelect');
@@ -20,6 +29,11 @@ const headingSettings = document.getElementById('headingSettings');
 const labelFromDate = document.getElementById('labelFromDate');
 const labelToDate = document.getElementById('labelToDate');
 const labelStore = document.getElementById('labelStore');
+const labelAnalysisMode = document.getElementById('labelAnalysisMode');
+const analysisModeFullOption = document.getElementById('analysisModeFullOption');
+const analysisModeSingleOption = document.getElementById('analysisModeSingleOption');
+const labelSingleReceiptPdf = document.getElementById('labelSingleReceiptPdf');
+const labelSingleReceiptStore = document.getElementById('labelSingleReceiptStore');
 const storeMaximaOption = document.getElementById('storeMaximaOption');
 const labelBankCsv = document.getElementById('labelBankCsv');
 const headingLog = document.getElementById('headingLog');
@@ -117,10 +131,17 @@ const UI_STRINGS = {
     settings: 'Seaded',
     fromDate: 'Alguskuupäev',
     toDate: 'Lõppkuupäev',
+    analysisMode: 'Analüüsi režiim',
+    analysisModeFull: 'Täispipeline (pangaväljavõttega)',
+    analysisModeSingle: 'Üksik tšekk (ilma pangaväljavõtteta)',
     store: 'Pood (allalaadimine ja analüüs)',
     storeMaxima: 'Maxima',
-    bankCsvLabel: 'Panga väljavõte (CSV kaustast bank_exports)',
-    refreshBank: 'Värskenda nimekirja',
+    singleReceiptPdfLabel: 'Ühe tšeki PDF',
+    singleReceiptStoreLabel: 'Poe nimi',
+    singleReceiptBrowse: 'Vali PDF',
+    singleReceiptPlaceholder: 'Vali loetava tekstikihiga PDF-tšekk',
+    bankCsvLabel: 'Pangaväljavõtte CSV (valikuline)',
+    pickBankCsv: 'Vali CSV',
     downloadReceipts: 'Laadi tšekid',
     runAnalysis: 'Käivita analüüs',
     bothSteps: 'Mõlemad sammud',
@@ -153,15 +174,17 @@ const UI_STRINGS = {
     unmatchedReceipts: 'Unmatched receipts',
     sourceBreakdown: 'Category source breakdown',
     sourceDeposit: 'Deposit',
+    sourceManualMemory: 'Manual memory',
     sourceRuleMatch: 'Rule match',
     sourceFallbackFood: 'Fallback to food',
     sourceUnknown: 'Unknown (non-product)',
     matchLegendMatched: 'Sobitatud',
     matchLegendUnmatched: 'Sobitamata',
-    chooseFile: '\u2014 vali fail \u2014',
-    noCsvFiles: '\u2014 bank_exports kaustas pole CSV-faile \u2014',
-    bankHintEmpty: 'Lisa CSV-failid kausta bank_exports ja vajuta "Värskenda nimekirja".',
-    bankHintFound: (count) => `Leitud faile: ${count}. Tšekid: receipts/, väljund: output/.`
+    bankCsvPlaceholder: 'Vali pangaväljavõtte CSV (valikuline)',
+    bankHintOptional: 'Täisrežiimis on bank CSV valikuline; ilma selleta jäetakse sobitamine vahele.',
+    pickBankCsvFailed: 'CSV valimine ebaõnnestus.',
+    pickSingleReceiptFailed: 'PDF valimine ebaõnnestus.',
+    singleModeNeedsPdf: 'Vali üksik tšeki PDF enne analüüsi käivitamist.'
   },
   en: {
     language: 'Language',
@@ -169,10 +192,17 @@ const UI_STRINGS = {
     settings: 'Settings',
     fromDate: 'Start date',
     toDate: 'End date',
+    analysisMode: 'Analysis mode',
+    analysisModeFull: 'Full pipeline (with bank CSV)',
+    analysisModeSingle: 'Single receipt (no bank CSV)',
     store: 'Store (download and analysis)',
     storeMaxima: 'Maxima',
-    bankCsvLabel: 'Bank export (CSV from bank_exports)',
-    refreshBank: 'Refresh list',
+    singleReceiptPdfLabel: 'Single receipt PDF',
+    singleReceiptStoreLabel: 'Store label',
+    singleReceiptBrowse: 'Browse PDF',
+    singleReceiptPlaceholder: 'Select a text-layer receipt PDF',
+    bankCsvLabel: 'Bank export CSV (optional)',
+    pickBankCsv: 'Browse CSV',
     downloadReceipts: 'Download receipts',
     runAnalysis: 'Run analysis',
     bothSteps: 'Both steps',
@@ -205,15 +235,17 @@ const UI_STRINGS = {
     unmatchedReceipts: 'Unmatched receipts',
     sourceBreakdown: 'Category source breakdown',
     sourceDeposit: 'Deposit',
+    sourceManualMemory: 'Manual memory',
     sourceRuleMatch: 'Rule match',
     sourceFallbackFood: 'Fallback to food',
     sourceUnknown: 'Unknown (non-product)',
     matchLegendMatched: 'Matched',
     matchLegendUnmatched: 'Unmatched',
-    chooseFile: '\u2014 choose file \u2014',
-    noCsvFiles: '\u2014 no CSV files in bank_exports \u2014',
-    bankHintEmpty: 'Add CSV files to bank_exports and click "Refresh list".',
-    bankHintFound: (count) => `Found files: ${count}. Receipts: receipts/, output: output/.`
+    bankCsvPlaceholder: 'Select bank CSV file (optional)',
+    bankHintOptional: 'Bank CSV is optional in full mode; if omitted, matching is skipped.',
+    pickBankCsvFailed: 'Failed to select CSV file.',
+    pickSingleReceiptFailed: 'Failed to select PDF file.',
+    singleModeNeedsPdf: 'Select a single receipt PDF before running analysis.'
   }
 };
 
@@ -241,10 +273,19 @@ function applyI18n() {
   headingSettings.textContent = t('settings');
   labelFromDate.textContent = t('fromDate');
   labelToDate.textContent = t('toDate');
+  labelAnalysisMode.textContent = t('analysisMode');
+  analysisModeFullOption.textContent = t('analysisModeFull');
+  analysisModeSingleOption.textContent = t('analysisModeSingle');
   labelStore.textContent = t('store');
   if (storeMaximaOption) storeMaximaOption.textContent = t('storeMaxima');
+  if (labelSingleReceiptPdf) labelSingleReceiptPdf.textContent = t('singleReceiptPdfLabel');
+  if (labelSingleReceiptStore) labelSingleReceiptStore.textContent = t('singleReceiptStoreLabel');
+  if (btnPickSingleReceiptPdf) btnPickSingleReceiptPdf.textContent = t('singleReceiptBrowse');
+  if (singleReceiptPdfPath) singleReceiptPdfPath.placeholder = t('singleReceiptPlaceholder');
   labelBankCsv.textContent = t('bankCsvLabel');
-  btnRefreshBank.textContent = t('refreshBank');
+  if (btnPickBankCsv) btnPickBankCsv.textContent = t('pickBankCsv');
+  if (bankCsvPathInput) bankCsvPathInput.placeholder = t('bankCsvPlaceholder');
+  if (bankHint) bankHint.textContent = t('bankHintOptional');
   btnDownload.textContent = t('downloadReceipts');
   btnPipeline.textContent = t('runAnalysis');
   btnBoth.textContent = t('bothSteps');
@@ -274,6 +315,29 @@ function applyI18n() {
   tabBaseline.textContent = t('tabBaseline');
 
   setLogExpanded(logExpanded);
+}
+
+function isSingleMode() {
+  return String(analysisModeSelect.value || 'full').trim().toLowerCase() === 'single';
+}
+
+function updateModeUi() {
+  const single = isSingleMode();
+  if (singleReceiptRow) singleReceiptRow.classList.toggle('hidden', !single);
+  if (fullDateFromField) fullDateFromField.classList.toggle('hidden', single);
+  if (fullDateToField) fullDateToField.classList.toggle('hidden', single);
+  if (fullStoreField) fullStoreField.classList.toggle('hidden', single);
+  if (fullBankField) fullBankField.classList.toggle('hidden', single);
+  fromDate.disabled = single || busy;
+  toDate.disabled = single || busy;
+  storeSelect.disabled = single || busy;
+  if (bankCsvPathInput) bankCsvPathInput.disabled = single || busy;
+  if (btnPickBankCsv) btnPickBankCsv.disabled = single || busy;
+  btnDownload.classList.toggle('hidden', single);
+  btnBoth.classList.toggle('hidden', single);
+  btnDownload.disabled = busy || single;
+  btnBoth.disabled = busy || single;
+  updatePipelineButtons();
 }
 
 function formatLocalizedValue(key, ...args) {
@@ -311,26 +375,31 @@ function setLogExpanded(expanded) {
 
 function setBusy(on) {
   busy = on;
-  btnDownload.disabled = on;
-  storeSelect.disabled = on;
+  analysisModeSelect.disabled = on;
+  btnPickSingleReceiptPdf.disabled = on;
+  singleReceiptStoreInput.disabled = on;
   updatePipelineButtons();
   btnClear.disabled = on;
-  btnRefreshBank.disabled = on;
+  updateModeUi();
 }
 
 function updatePipelineButtons() {
-  const hasBank = Boolean(bankCsvSelect.value);
-  const block = busy || !hasBank;
+  const single = isSingleMode();
+  const hasSinglePdf = Boolean(String(singleReceiptPdfPath.value || '').trim());
+  const block = busy || (single ? !hasSinglePdf : false);
   btnPipeline.disabled = block;
-  btnBoth.disabled = block;
+  btnBoth.disabled = single || block;
 }
 
 function readForm() {
   return {
     from: fromDate.value.trim(),
     to: toDate.value.trim(),
-    bankBasename: bankCsvSelect.value.trim(),
-    stores: 'maxima'
+    bankCsvPath: bankCsvPathInput ? bankCsvPathInput.value.trim() : '',
+    stores: 'maxima',
+    mode: isSingleMode() ? 'single' : 'full',
+    singleReceiptPdfPath: String(singleReceiptPdfPath.value || '').trim(),
+    singleReceiptStore: String(singleReceiptStoreInput.value || '').trim() || 'Selver'
   };
 }
 
@@ -340,40 +409,6 @@ function bindJobSession() {
   return new Promise((resolve) => {
     window.electronAPI.onceJobDone((payload) => resolve(payload));
   });
-}
-
-async function fillBankSelect() {
-  let files = [];
-  try {
-    files = await window.electronAPI.listBankCsvFiles();
-  } catch (e) {
-    appendLog(`Failed to read bank_exports directory: ${e.message}\n`);
-    files = [];
-  }
-
-  const prev = bankCsvSelect.value;
-  bankCsvSelect.innerHTML = '';
-  const first = document.createElement('option');
-  first.value = '';
-  first.textContent = files.length ? t('chooseFile') : t('noCsvFiles');
-  bankCsvSelect.appendChild(first);
-
-  for (const name of files) {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    bankCsvSelect.appendChild(opt);
-  }
-
-  if (prev && files.includes(prev)) {
-    bankCsvSelect.value = prev;
-  }
-
-  bankHint.textContent =
-    files.length === 0
-      ? t('bankHintEmpty')
-      : formatLocalizedValue('bankHintFound', files.length);
-  updatePipelineButtons();
 }
 
 function validateDownload(form) {
@@ -389,9 +424,12 @@ function validateDownload(form) {
 }
 
 function validatePipeline(form) {
-  if (!form.bankBasename) {
-    appendLog('Select a bank CSV file from the list.\n');
-    return false;
+  if (form.mode === 'single') {
+    if (!form.singleReceiptPdfPath) {
+      appendLog(`${t('singleModeNeedsPdf')}\n`);
+      return false;
+    }
+    return true;
   }
   return true;
 }
@@ -680,6 +718,7 @@ function renderBaselineSection() {
 function sourceLabel(source) {
   const key = String(source || '').trim().toLowerCase();
   if (key === 'deposit') return t('sourceDeposit');
+  if (key === 'manual_memory') return t('sourceManualMemory');
   if (key === 'rule_match') return t('sourceRuleMatch');
   if (key === 'fallback_food') return t('sourceFallbackFood');
   if (key === 'unknown') return t('sourceUnknown');
@@ -690,6 +729,7 @@ function renderSourceBreakdown(rows) {
   if (!sourceBreakdownLegend) return;
   const sourcePalette = {
     deposit: '#7FD3FF',
+    manual_memory: '#AB92FA',
     rule_match: '#48CFAE',
     fallback_food: '#F6C14B',
     unknown: '#F38BA8'
@@ -803,7 +843,7 @@ async function refreshResults() {
   renderResults(summary);
 }
 
-bankCsvSelect.addEventListener('change', updatePipelineButtons);
+analysisModeSelect.addEventListener('change', updateModeUi);
 tabData.addEventListener('click', () => setActivePage('data'));
 tabParsing.addEventListener('click', () => setActivePage('parsing'));
 tabCategorization.addEventListener('click', () => setActivePage('categorization'));
@@ -814,13 +854,34 @@ languageSelect.addEventListener('change', async () => {
   currentLang = UI_STRINGS[selected] ? selected : 'et';
   localStorage.setItem('uiLanguage', currentLang);
   applyI18n();
-  await fillBankSelect();
   await refreshResults();
   await refreshResearchData();
 });
 
-btnRefreshBank.addEventListener('click', () => {
-  fillBankSelect();
+if (btnPickBankCsv) {
+  btnPickBankCsv.addEventListener('click', async () => {
+    try {
+      const res = await window.electronAPI.pickBankCsv();
+      if (res && res.ok && res.path && bankCsvPathInput) {
+        bankCsvPathInput.value = String(res.path);
+        updatePipelineButtons();
+      }
+    } catch (_e) {
+      appendLog(`${t('pickBankCsvFailed')}\n`);
+    }
+  });
+}
+
+btnPickSingleReceiptPdf.addEventListener('click', async () => {
+  try {
+    const res = await window.electronAPI.pickSingleReceiptPdf();
+    if (res && res.ok && res.path) {
+      singleReceiptPdfPath.value = String(res.path);
+      updatePipelineButtons();
+    }
+  } catch (_e) {
+    appendLog(`${t('pickSingleReceiptFailed')}\n`);
+  }
 });
 
 btnResearchReload.addEventListener('click', () => {
@@ -855,7 +916,6 @@ btnDownload.addEventListener('click', async () => {
   const result = await done;
   appendLog(result.ok ? '\nDone.\n' : `\nFinished with error code ${result.code}.\n`);
   setBusy(false);
-  if (result.ok) await fillBankSelect();
 });
 
 btnPipeline.addEventListener('click', async () => {
@@ -865,10 +925,13 @@ btnPipeline.addEventListener('click', async () => {
   const done = bindJobSession();
   appendLog('--- Analysis (Python) ---\n');
   window.electronAPI.startPipeline({
-    bankBasename: form.bankBasename,
+    mode: form.mode,
+    bankCsvPath: form.bankCsvPath,
     stores: form.stores,
     from: form.from,
-    to: form.to
+    to: form.to,
+    singleReceiptPdfPath: form.singleReceiptPdfPath,
+    singleReceiptStore: form.singleReceiptStore
   });
   const result = await done;
   if (result && result.outputDir) lastOutputDir = String(result.outputDir);
@@ -900,18 +963,11 @@ btnBoth.addEventListener('click', async () => {
     return;
   }
 
-  await fillBankSelect();
-  const currentBank = bankCsvSelect.value.trim();
-  if (!currentBank) {
-    appendLog('\nSelect a bank CSV file before running analysis.\n');
-    setBusy(false);
-    return;
-  }
-
   done = bindJobSession();
   appendLog('\n--- Step 2: Analysis ---\n');
   window.electronAPI.startPipeline({
-    bankBasename: currentBank,
+    mode: 'full',
+    bankCsvPath: form.bankCsvPath,
     stores: form.stores,
     from: form.from,
     to: form.to
@@ -953,7 +1009,7 @@ defaultDateRange();
 try {
   setActivePage(loadActivePage());
   applyI18n();
-  fillBankSelect();
+  updateModeUi();
   refreshResults();
   refreshResearchData();
 } catch (e) {

@@ -35,27 +35,45 @@
       <section class="card">
         <h2 id="headingSettings">Seaded</h2>
         <div class="grid">
-          <label class="field">
+          <label class="field span-2">
+            <span id="labelAnalysisMode">Analysis mode</span>
+            <select id="analysisModeSelect" aria-label="Analysis mode">
+              <option id="analysisModeFullOption" value="full">Full pipeline (with bank CSV)</option>
+              <option id="analysisModeSingleOption" value="single">Single receipt (no bank CSV)</option>
+            </select>
+          </label>
+          <label id="fullDateFromField" class="field">
             <span id="labelFromDate">Alguskuupäev</span>
             <input type="date" id="fromDate" />
           </label>
-          <label class="field">
+          <label id="fullDateToField" class="field">
             <span id="labelToDate">Lõppkuupäev</span>
             <input type="date" id="toDate" />
           </label>
-          <label class="field span-2">
+          <label id="fullStoreField" class="field span-2">
             <span id="labelStore">Pood (allalaadimine ja analüüs)</span>
             <select id="storeSelect" aria-label="Pood">
               <option id="storeMaximaOption" value="maxima">Maxima</option>
             </select>
           </label>
-          <div class="field span-2 bank-row">
-            <label id="labelBankCsv" class="bank-label" for="bankCsvSelect">Panga väljavõte (CSV kaustast <code>bank_exports</code>)</label>
+          <div id="singleReceiptRow" class="field span-2 hidden">
+            <label id="labelSingleReceiptPdf" class="bank-label" for="singleReceiptPdfPath">Single receipt PDF</label>
             <div class="bank-controls">
-              <select id="bankCsvSelect" aria-describedby="bankHint"></select>
-              <button type="button" id="btnRefreshBank" class="btn ghost">Värskenda nimekirja</button>
+              <input type="text" id="singleReceiptPdfPath" placeholder="Select a text-PDF receipt file" readonly />
+              <button type="button" id="btnPickSingleReceiptPdf" class="btn ghost">Browse PDF</button>
             </div>
-            <p id="bankHint" class="hint">Lisa väljavõtte failid projekti juurkausta kausta <code>bank_exports</code>.</p>
+            <label class="field" for="singleReceiptStoreInput">
+              <span id="labelSingleReceiptStore">Store label</span>
+              <input id="singleReceiptStoreInput" type="text" value="Selver" />
+            </label>
+          </div>
+          <div id="fullBankField" class="field span-2 bank-row">
+            <label id="labelBankCsv" class="bank-label" for="bankCsvPath">Bank export CSV (optional)</label>
+            <div class="bank-controls">
+              <input type="text" id="bankCsvPath" placeholder="Select bank CSV file (optional)" readonly />
+              <button type="button" id="btnPickBankCsv" class="btn ghost">Browse CSV</button>
+            </div>
+            <p id="bankHint" class="hint">Optional in full mode. If omitted, bank matching is skipped.</p>
           </div>
         </div>
 

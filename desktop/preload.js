@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getResearchData: (payload) => ipcRenderer.invoke('get-research-data', payload),
   saveManualCorrections: (payload) => ipcRenderer.invoke('save-manual-corrections', payload),
   exportResearchReport: (payload) => ipcRenderer.invoke('export-research-report', payload),
+  pickSingleReceiptPdf: () => ipcRenderer.invoke('pick-single-receipt-pdf'),
+  pickBankCsv: () => ipcRenderer.invoke('pick-bank-csv'),
   startDownload: (opts) => ipcRenderer.send('job-download', opts),
   startPipeline: (opts) => ipcRenderer.send('job-pipeline', opts),
   clearJobListeners: () => {
