@@ -13,7 +13,7 @@ maxima/
 bank_exports/
 /bank_export.csv
 baseline_run.json
-Документы диплома/
+diplom_docs/
 
 # Environment and secrets
 .env
