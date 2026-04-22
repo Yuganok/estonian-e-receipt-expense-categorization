@@ -53,8 +53,13 @@ const btnSaveCorrections = document.getElementById('btnSaveCorrections');
 const btnExportResearch = document.getElementById('btnExportResearch');
 const parseSearch = document.getElementById('parseSearch');
 const parseFilterKind = document.getElementById('parseFilterKind');
+const parseFilterAllOption = document.getElementById('parseFilterAllOption');
+const parseFilterNoiseOption = document.getElementById('parseFilterNoiseOption');
+const parseFilterDepositOption = document.getElementById('parseFilterDepositOption');
+const parseFilterCleanOption = document.getElementById('parseFilterCleanOption');
 const catSearch = document.getElementById('catSearch');
 const catFilterKind = document.getElementById('catFilterKind');
+const catFilterAllOption = document.getElementById('catFilterAllOption');
 const tableParsingBody = document.querySelector('#tableParsing tbody');
 const tableCategorizedBody = document.querySelector('#tableCategorized tbody');
 const tableBaselineBody = document.querySelector('#tableBaseline tbody');
@@ -74,6 +79,26 @@ const pageData = document.getElementById('pageData');
 const pageParsing = document.getElementById('pageParsing');
 const pageCategorization = document.getElementById('pageCategorization');
 const pageBaseline = document.getElementById('pageBaseline');
+const thParseStore = document.getElementById('thParseStore');
+const thParseReceipt = document.getElementById('thParseReceipt');
+const thParseItemText = document.getElementById('thParseItemText');
+const thParseGross = document.getElementById('thParseGross');
+const thParseDiscount = document.getElementById('thParseDiscount');
+const thParseDeposit = document.getElementById('thParseDeposit');
+const thParseNoise = document.getElementById('thParseNoise');
+const thCatStore = document.getElementById('thCatStore');
+const thCatReceipt = document.getElementById('thCatReceipt');
+const thCatItemText = document.getElementById('thCatItemText');
+const thCatAutoCategory = document.getElementById('thCatAutoCategory');
+const thCatRule = document.getElementById('thCatRule');
+const thCatManualCategory = document.getElementById('thCatManualCategory');
+const thBaselineReceipt = document.getElementById('thBaselineReceipt');
+const thBaselineStore = document.getElementById('thBaselineStore');
+const thBaselinePurchaseDate = document.getElementById('thBaselinePurchaseDate');
+const thBaselineTotal = document.getElementById('thBaselineTotal');
+const thBaselineBankDate = document.getElementById('thBaselineBankDate');
+const thBaselineBankAmount = document.getElementById('thBaselineBankAmount');
+const thBaselineConfidence = document.getElementById('thBaselineConfidence');
 
 const resultsEmpty = document.getElementById('resultsEmpty');
 const resultsContent = document.getElementById('resultsContent');
@@ -158,33 +183,60 @@ const UI_STRINGS = {
     kpiTopCategory: 'Suurim kategooria',
     chartCategories: 'Kulude jaotus kategooriate kaupa',
     chartMatching: 'Sobitamise katvus',
-    researchReview: 'Research review',
-    parsingReview: 'Parsing review',
-    categorizationReview: 'Categorization review',
-    baselineComparison: 'Baseline comparison',
+    researchReview: 'Ülevaade',
+    parsingReview: 'Parsimise ülevaade',
+    categorizationReview: 'Kategoriseerimise ülevaade',
+    baselineComparison: 'Võrdlus ja raport',
     tabData: 'Andmete kogumine',
-    tabParsing: 'Parsimise ulevaade',
-    tabCategorization: 'Kategoriseerimise ulevaade',
-    tabBaseline: 'Vordlus ja raport',
-    reloadResearch: 'Reload research data',
-    saveCorrections: 'Save corrections',
-    exportResearch: 'Export research report',
-    mismatchRate: 'Mismatch rate',
-    mixedReceipts: 'Mixed receipts',
-    unmatchedReceipts: 'Unmatched receipts',
-    sourceBreakdown: 'Category source breakdown',
-    sourceDeposit: 'Deposit',
-    sourceManualMemory: 'Manual memory',
-    sourceRuleMatch: 'Rule match',
-    sourceFallbackFood: 'Fallback to food',
-    sourceUnknown: 'Unknown (non-product)',
+    tabParsing: 'Parsimise ülevaade',
+    tabCategorization: 'Kategoriseerimise ülevaade',
+    tabBaseline: 'Võrdlus ja raport',
+    reloadResearch: 'Laadi uurimisandmed uuesti',
+    saveCorrections: 'Salvesta parandused',
+    exportResearch: 'Ekspordi uurimisraport',
+    mismatchRate: 'Mittevastavuse määr',
+    mixedReceipts: 'Segatud tšekid',
+    unmatchedReceipts: 'Sobitamata tšekid',
+    sourceBreakdown: 'Kategooria allika jaotus',
+    sourceDeposit: 'Deposiit',
+    sourceManualMemory: 'Käsimälu',
+    sourceRuleMatch: 'Reeglipõhine vaste',
+    sourceFallbackFood: 'Vaikimisi toit',
+    sourceUnknown: 'Tundmatu (mitte toode)',
     matchLegendMatched: 'Sobitatud',
     matchLegendUnmatched: 'Sobitamata',
     bankCsvPlaceholder: 'Vali pangaväljavõtte CSV (valikuline)',
-    bankHintOptional: 'Täisrežiimis on bank CSV valikuline; ilma selleta jäetakse sobitamine vahele.',
+    bankHintOptional: 'Täisrežiimis on panga CSV valikuline; ilma selleta jäetakse sobitamine vahele.',
     pickBankCsvFailed: 'CSV valimine ebaõnnestus.',
     pickSingleReceiptFailed: 'PDF valimine ebaõnnestus.',
-    singleModeNeedsPdf: 'Vali üksik tšeki PDF enne analüüsi käivitamist.'
+    singleModeNeedsPdf: 'Vali üksik tšeki PDF enne analüüsi käivitamist.',
+    parseSearchPlaceholder: 'Otsi tooteteksti...',
+    catSearchPlaceholder: 'Otsi kategoriseeritud ridu...',
+    parseFilterAll: 'Kõik read',
+    parseFilterNoise: 'Ainult müra',
+    parseFilterDeposit: 'Ainult deposiidid',
+    parseFilterClean: 'Puhtad read (ilma deposiidita)',
+    allCategories: 'Kõik kategooriad',
+    tableStore: 'Pood',
+    tableReceipt: 'Tšekk',
+    tableItemText: 'Toote tekst',
+    tableGross: 'Bruto',
+    tableDiscount: 'Allahindlus',
+    tableDeposit: 'Deposiit',
+    tableNoise: 'Müra',
+    tableAutoCategory: 'Automaatne kategooria',
+    tableRuleKeyword: 'Reegel/märksõna',
+    tableManualCategory: 'Käsitsi kategooria',
+    tablePurchaseDate: 'Ostukuupäev',
+    tableTotal: 'Kokku',
+    tableBankDate: 'Panga kuupäev',
+    tableBankAmount: 'Panga summa',
+    tableConfidence: 'Usaldus',
+    boolYes: 'jah',
+    boolNo: 'ei',
+    ruleDefault: '(vaikimisi)',
+    ruleUnavailable: '(selles sessioonis pole saadaval)',
+    autoCategoryLabel: (category) => `(auto: ${String(category || '')})`
   },
   en: {
     language: 'Language',
@@ -245,7 +297,34 @@ const UI_STRINGS = {
     bankHintOptional: 'Bank CSV is optional in full mode; if omitted, matching is skipped.',
     pickBankCsvFailed: 'Failed to select CSV file.',
     pickSingleReceiptFailed: 'Failed to select PDF file.',
-    singleModeNeedsPdf: 'Select a single receipt PDF before running analysis.'
+    singleModeNeedsPdf: 'Select a single receipt PDF before running analysis.',
+    parseSearchPlaceholder: 'Search item text...',
+    catSearchPlaceholder: 'Search categorized items...',
+    parseFilterAll: 'All rows',
+    parseFilterNoise: 'Noise only',
+    parseFilterDeposit: 'Deposits only',
+    parseFilterClean: 'Clean non-deposit',
+    allCategories: 'All categories',
+    tableStore: 'Store',
+    tableReceipt: 'Receipt',
+    tableItemText: 'Item text',
+    tableGross: 'Gross',
+    tableDiscount: 'Discount',
+    tableDeposit: 'Deposit',
+    tableNoise: 'Noise',
+    tableAutoCategory: 'Auto category',
+    tableRuleKeyword: 'Rule/keyword',
+    tableManualCategory: 'Manual category',
+    tablePurchaseDate: 'Purchase date',
+    tableTotal: 'Total',
+    tableBankDate: 'Bank date',
+    tableBankAmount: 'Bank amount',
+    tableConfidence: 'Confidence',
+    boolYes: 'yes',
+    boolNo: 'no',
+    ruleDefault: '(default)',
+    ruleUnavailable: '(not available in this session)',
+    autoCategoryLabel: (category) => `(auto: ${String(category || '')})`
   }
 };
 
@@ -313,6 +392,33 @@ function applyI18n() {
   tabParsing.textContent = t('tabParsing');
   tabCategorization.textContent = t('tabCategorization');
   tabBaseline.textContent = t('tabBaseline');
+  parseSearch.placeholder = t('parseSearchPlaceholder');
+  catSearch.placeholder = t('catSearchPlaceholder');
+  if (parseFilterAllOption) parseFilterAllOption.textContent = t('parseFilterAll');
+  if (parseFilterNoiseOption) parseFilterNoiseOption.textContent = t('parseFilterNoise');
+  if (parseFilterDepositOption) parseFilterDepositOption.textContent = t('parseFilterDeposit');
+  if (parseFilterCleanOption) parseFilterCleanOption.textContent = t('parseFilterClean');
+  if (catFilterAllOption) catFilterAllOption.textContent = t('allCategories');
+  if (thParseStore) thParseStore.textContent = t('tableStore');
+  if (thParseReceipt) thParseReceipt.textContent = t('tableReceipt');
+  if (thParseItemText) thParseItemText.textContent = t('tableItemText');
+  if (thParseGross) thParseGross.textContent = t('tableGross');
+  if (thParseDiscount) thParseDiscount.textContent = t('tableDiscount');
+  if (thParseDeposit) thParseDeposit.textContent = t('tableDeposit');
+  if (thParseNoise) thParseNoise.textContent = t('tableNoise');
+  if (thCatStore) thCatStore.textContent = t('tableStore');
+  if (thCatReceipt) thCatReceipt.textContent = t('tableReceipt');
+  if (thCatItemText) thCatItemText.textContent = t('tableItemText');
+  if (thCatAutoCategory) thCatAutoCategory.textContent = t('tableAutoCategory');
+  if (thCatRule) thCatRule.textContent = t('tableRuleKeyword');
+  if (thCatManualCategory) thCatManualCategory.textContent = t('tableManualCategory');
+  if (thBaselineReceipt) thBaselineReceipt.textContent = t('tableReceipt');
+  if (thBaselineStore) thBaselineStore.textContent = t('tableStore');
+  if (thBaselinePurchaseDate) thBaselinePurchaseDate.textContent = t('tablePurchaseDate');
+  if (thBaselineTotal) thBaselineTotal.textContent = t('tableTotal');
+  if (thBaselineBankDate) thBaselineBankDate.textContent = t('tableBankDate');
+  if (thBaselineBankAmount) thBaselineBankAmount.textContent = t('tableBankAmount');
+  if (thBaselineConfidence) thBaselineConfidence.textContent = t('tableConfidence');
 
   setLogExpanded(logExpanded);
 }
@@ -613,8 +719,8 @@ function renderParsingTable() {
       <td>${String(r.item_text || '')}</td>
       <td>${String(r.gross_price || '')}</td>
       <td>${String(r.discount || '')}</td>
-      <td>${r.is_deposit ? 'yes' : 'no'}</td>
-      <td>${r.is_noise ? 'yes' : 'no'}</td>
+      <td>${r.is_deposit ? t('boolYes') : t('boolNo')}</td>
+      <td>${r.is_noise ? t('boolYes') : t('boolNo')}</td>
     `;
     tableParsingBody.appendChild(tr);
   }
@@ -632,7 +738,7 @@ function renderCategoryFilterOptions() {
     if (!c) continue;
     const opt = document.createElement('option');
     opt.value = c;
-    opt.textContent = c === 'all' ? 'All categories' : c;
+    opt.textContent = c === 'all' ? t('allCategories') : c;
     catFilterKind.appendChild(opt);
   }
   catFilterKind.value = Array.from(categories).includes(prev) ? prev : 'all';
@@ -657,7 +763,7 @@ function renderCategorizedTable() {
     select.className = 'inline-select';
     const empty = document.createElement('option');
     empty.value = '';
-    empty.textContent = `(auto: ${String(r.category || '')})`;
+    empty.textContent = formatLocalizedValue('autoCategoryLabel', String(r.category || ''));
     select.appendChild(empty);
     for (const c of CATEGORY_OPTIONS) {
       const opt = document.createElement('option');
@@ -674,8 +780,8 @@ function renderCategorizedTable() {
 
     const rawRule = String(r.category_rule ?? '').trim();
     const ruleDisplay = !hasRuleColumn
-      ? '(not available in this session)'
-      : (rawRule || '(default)');
+      ? t('ruleUnavailable')
+      : (rawRule || t('ruleDefault'));
 
     tr.innerHTML = `
       <td>${String(r.store || '')}</td>
