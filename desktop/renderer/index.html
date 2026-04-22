@@ -110,10 +110,10 @@
           <div class="filter-row">
             <input id="parseSearch" type="text" placeholder="Search item text..." />
             <select id="parseFilterKind" aria-label="Parse row filter">
-              <option value="all">All rows</option>
-              <option value="noise">Noise only</option>
-              <option value="deposit">Deposits only</option>
-              <option value="clean">Clean non-deposit</option>
+              <option id="parseFilterAllOption" value="all">All rows</option>
+              <option id="parseFilterNoiseOption" value="noise">Noise only</option>
+              <option id="parseFilterDepositOption" value="deposit">Deposits only</option>
+              <option id="parseFilterCleanOption" value="clean">Clean non-deposit</option>
             </select>
           </div>
           <div class="table-wrap">
@@ -129,13 +129,13 @@
               </colgroup>
               <thead>
                 <tr>
-                  <th>Store</th>
-                  <th>Receipt</th>
-                  <th>Item text</th>
-                  <th>Gross</th>
-                  <th>Discount</th>
-                  <th>Deposit</th>
-                  <th>Noise</th>
+                  <th id="thParseStore">Store</th>
+                  <th id="thParseReceipt">Receipt</th>
+                  <th id="thParseItemText">Item text</th>
+                  <th id="thParseGross">Gross</th>
+                  <th id="thParseDiscount">Discount</th>
+                  <th id="thParseDeposit">Deposit</th>
+                  <th id="thParseNoise">Noise</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -157,7 +157,7 @@
           <div class="filter-row">
             <input id="catSearch" type="text" placeholder="Search categorized items..." />
             <select id="catFilterKind" aria-label="Category filter">
-              <option value="all">All categories</option>
+              <option id="catFilterAllOption" value="all">All categories</option>
             </select>
           </div>
           <div class="table-wrap">
@@ -172,12 +172,12 @@
               </colgroup>
               <thead>
                 <tr>
-                  <th>Store</th>
-                  <th>Receipt</th>
-                  <th>Item text</th>
-                  <th>Auto category</th>
-                  <th>Rule/keyword</th>
-                  <th>Manual category</th>
+                  <th id="thCatStore">Store</th>
+                  <th id="thCatReceipt">Receipt</th>
+                  <th id="thCatItemText">Item text</th>
+                  <th id="thCatAutoCategory">Auto category</th>
+                  <th id="thCatRule">Rule/keyword</th>
+                  <th id="thCatManualCategory">Manual category</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -256,13 +256,13 @@
               </colgroup>
               <thead>
                 <tr>
-                  <th>Receipt</th>
-                  <th>Store</th>
-                  <th>Purchase date</th>
-                  <th>Total</th>
-                  <th>Bank date</th>
-                  <th>Bank amount</th>
-                  <th>Confidence</th>
+                  <th id="thBaselineReceipt">Receipt</th>
+                  <th id="thBaselineStore">Store</th>
+                  <th id="thBaselinePurchaseDate">Purchase date</th>
+                  <th id="thBaselineTotal">Total</th>
+                  <th id="thBaselineBankDate">Bank date</th>
+                  <th id="thBaselineBankAmount">Bank amount</th>
+                  <th id="thBaselineConfidence">Confidence</th>
                 </tr>
               </thead>
               <tbody></tbody>
