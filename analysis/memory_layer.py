@@ -186,6 +186,16 @@ def _norm_key_for_row(row: dict[str, str]) -> tuple[str, str] | None:
     return store_norm, item_norm
 
 
+def _norm_key_from_correction(corr: dict[str, str]) -> tuple[str, str] | None:
+    store_norm = _normalize_store(corr.get("store", ""))
+    item_norm = _normalize_item_text(corr.get("item_text", ""))
+    if not item_norm:
+        return None
+    if not store_norm:
+        return None
+    return store_norm, item_norm
+
+
 def sync_session_corrections(
     categorized_csv: str | Path,
     corrections_json_path: str | Path,
@@ -214,17 +224,22 @@ def sync_session_corrections(
         if not manual_category:
             continue
         row = key_to_row.get(_session_row_key(corr))
-        if not row:
-            continue
-        norm_key = _norm_key_for_row(row)
+        norm_key = _norm_key_for_row(row) if row else None
+        if norm_key is None:
+            norm_key = _norm_key_from_correction(corr)
         if not norm_key:
             continue
+        store_raw = str((row or {}).get("store", "")).strip() or str(corr.get("store", "")).strip()
+        item_raw = str((row or {}).get("item_text", "")).strip() or str(corr.get("item_text", "")).strip()
+        if not store_raw:
+            # Backward-compatible fallback for legacy data without store.
+            store_raw = "*"
         desired_overrides[norm_key] = {
             "manual_category": manual_category,
             "note": str(corr.get("note", "")).strip(),
             "updated_at": str(corr.get("updated_at", "")).strip() or _utc_now_iso(),
-            "store": str(row.get("store", "")).strip(),
-            "item_text": str(row.get("item_text", "")).strip(),
+            "store": store_raw,
+            "item_text": item_raw,
         }
 
     session_norm_keys = {

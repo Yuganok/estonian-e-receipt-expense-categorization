@@ -14,6 +14,7 @@ bank_exports/
 /bank_export.csv
 baseline_run.json
 diplom_docs/
+diplom docs/
 
 # Environment and secrets
 .env

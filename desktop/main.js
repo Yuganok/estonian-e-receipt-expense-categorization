@@ -810,12 +810,13 @@ async function saveManualCorrections(preferredOutDir, corrections) {
   const normalized = rows
     .map((r) => ({
       receipt_id: String(r.receipt_id || ''),
+      store: String(r.store || ''),
       item_text: String(r.item_text || ''),
       manual_category: String(r.manual_category || ''),
       note: String(r.note || ''),
       updated_at: String(r.updated_at || new Date().toISOString())
     }))
-    .filter((r) => r.receipt_id && r.item_text && r.manual_category);
+    .filter((r) => r.item_text && r.manual_category);
   if (!fsNative.existsSync(categorizedPath)) {
     return {
       ok: false,

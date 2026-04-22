@@ -583,6 +583,7 @@ function ensureManualCorrection(row, manualCategory) {
   }
   manualCorrectionsMap.set(key, {
     receipt_id: String(row.receipt_id || ''),
+    store: String(row.store || ''),
     item_text: String(row.item_text || ''),
     manual_category: manualCategory,
     note: '',
@@ -786,7 +787,11 @@ async function saveCorrections() {
     corrections
   });
   if (res && res.ok) {
-    appendLog(`[info] Saved manual corrections: ${res.saved}\n`);
+    appendLog(
+      `[info] Saved manual corrections: ${res.saved} (upserted=${Number(res.upserted || 0)}, deleted=${Number(
+        res.deleted || 0
+      )})\n`
+    );
   } else {
     appendLog(`[error] Could not save manual corrections: ${res && res.error ? res.error : 'unknown'}\n`);
   }
