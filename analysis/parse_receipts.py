@@ -12,6 +12,7 @@ Output columns:
     item_text, gross_price, discount, net_price, is_deposit
 """
 
+import hashlib
 import re
 import csv
 from pathlib import Path
@@ -95,6 +96,17 @@ def _maxima_receipt_id(pdf_path: Path, maxima_root: Path) -> str:
     if not safe:
         safe = re.sub(r"[^\w\-.]", "_", pdf_path.stem)
     return f"MAX_{safe}"
+
+
+def _single_receipt_id(pdf_path: Path) -> str:
+    """
+    Stable receipt id for manually provided single PDF paths.
+    Includes a short path hash to avoid collisions on common filenames.
+    """
+    resolved = str(pdf_path.resolve())
+    stem = re.sub(r"[^\w\-.]", "_", pdf_path.stem)
+    short_hash = hashlib.sha1(resolved.encode("utf-8")).hexdigest()[:8]
+    return f"MAN_{stem}_{short_hash}"
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +242,108 @@ def _extract_maxima(pdf_path: Path) -> dict:
     }
 
 
+def _extract_selver_from_text(text: str) -> dict:
+    """
+    Parse Selver-style text receipts with table columns:
+      Toode | Kogus | Ühiku hind | Kokku
+    """
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"(\d),\s+(\d)", r"\1,\2", text)
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+    total = None
+    total_re = re.compile(r"^Kokku\s+([\d,]+)\s*€?$", re.IGNORECASE)
+    for line in lines:
+        m = total_re.search(line)
+        if m:
+            total = float(m.group(1).replace(",", "."))
+            break
+
+    purchase_date = None
+    date_re = re.compile(r"\b(\d{2}\.\d{2}\.\d{4})\b")
+    for line in lines:
+        m = date_re.search(line)
+        if m:
+            d, mo, y = m.group(1).split(".")
+            purchase_date = f"{y}-{mo}-{d}"
+            break
+
+    # Start from item table header.
+    header_idx = -1
+    for i, line in enumerate(lines):
+        if all(tok in line for tok in ("Toode", "Kogus", "Ühiku hind", "Kokku")):
+            header_idx = i
+            break
+
+    items: list[dict] = []
+    if header_idx < 0:
+        return {"purchase_date": purchase_date, "receipt_total": total, "items": items}
+
+    stop_markers = (
+        "Kokku KM-ta",
+        "KM kokku",
+        "Maksmisviis",
+        "MAKSEKAART",
+        "BOONUSRAHA",
+        "KOKKU",
+        "Kassa",
+        "Tšeki nr",
+        "Partnerkaart",
+    )
+    row_re = re.compile(
+        r"^(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+))\s*€?$",
+        re.IGNORECASE,
+    )
+
+    for line in lines[header_idx + 1 :]:
+        if any(line.startswith(marker) for marker in stop_markers):
+            break
+        if line.startswith("KM ") or line.startswith("KM"):
+            break
+        m = row_re.match(line)
+        if not m:
+            continue
+        item_text = m.group(1).strip()
+        if not item_text or item_text.lower() == "kokku":
+            continue
+        qty = float(m.group(2).replace(",", "."))
+        unit_price = float(m.group(3).replace(",", "."))
+        line_total = float(m.group(4).replace(",", "."))
+        gross_price = round(line_total, 2)
+        # Quantity is parsed mainly for validation/debug; output schema remains unchanged.
+        _ = qty, unit_price
+        items.append(
+            {
+                "item_text": item_text,
+                "gross_price": gross_price,
+                "discount": 0.0,
+                "net_price": gross_price,
+                "is_deposit": is_deposit(item_text),
+            }
+        )
+
+    return {
+        "purchase_date": purchase_date,
+        "receipt_total": total,
+        "items": items,
+    }
+
+
+def _extract_single_text_pdf(pdf_path: Path) -> dict:
+    """
+    Parse manually provided single text-PDF.
+    Uses Selver table parser when pattern is detected; otherwise falls back to Maxima parser.
+    """
+    reader = PdfReader(str(pdf_path))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    text_low = text.lower()
+    if ("selver" in text_low and "ühiku hind" in text_low and "kogus" in text_low) or (
+        "toode" in text_low and "ühiku hind" in text_low and "maksmisviis" in text_low
+    ):
+        return _extract_selver_from_text(text)
+    return _extract_maxima(pdf_path)
+
+
 # ---------------------------------------------------------------------------
 # Rimi image fallback
 # Rimi receipts are image-based; until OCR is implemented we load from a
@@ -271,6 +385,9 @@ def parse_all_receipts(
     receipts_out: Path,
     stores: frozenset[str] | None = None,
     maxima_purchases_csv: Path | None = None,
+    single_receipt_pdf: Path | None = None,
+    single_receipt_store: str = "Selver",
+    only_single_receipt: bool = False,
 ):
     """
     Walk receipts_dir, parse all receipts, write two CSV files:
@@ -280,16 +397,57 @@ def parse_all_receipts(
     stores: which chains to include (lowercase: maxima, rimi). None = all.
     maxima_purchases_csv: optional path to Maxima purchases.csv (session manifest).
         If provided and valid, only PDFs listed in this CSV are parsed for Maxima.
+    single_receipt_pdf: optional absolute/relative path to one manually provided text-PDF.
+    single_receipt_store: store label written to CSV for the single-receipt mode.
+    only_single_receipt: if True, skip Maxima/Rimi directory scans and parse only single_receipt_pdf.
     """
     receipts_dir = Path(receipts_dir)
+    single_receipt_pdf = Path(single_receipt_pdf) if single_receipt_pdf else None
+    store_label = str(single_receipt_store or "Selver").strip() or "Selver"
     if stores is None:
         stores = frozenset({"maxima", "rimi"})
     all_items = []
     all_receipts = []
 
+    # --- Single manually provided text-PDF ---
+    if single_receipt_pdf:
+        if not single_receipt_pdf.exists():
+            raise FileNotFoundError(f"single receipt PDF not found: {single_receipt_pdf}")
+        if single_receipt_pdf.suffix.lower() != ".pdf":
+            raise ValueError(f"single receipt file must be a .pdf: {single_receipt_pdf}")
+        rid = _single_receipt_id(single_receipt_pdf)
+        print(f"  Parsing single receipt: {single_receipt_pdf} ...", end=" ")
+        result = _extract_single_text_pdf(single_receipt_pdf)
+        total = result["receipt_total"] or 0.0
+        date = result["purchase_date"] or "unknown"
+        all_receipts.append(
+            {
+                "receipt_id": rid,
+                "store": store_label,
+                "purchase_date": date,
+                "receipt_total_eur": total,
+                "source": "manual_pdf_text",
+            }
+        )
+        for item in result["items"]:
+            all_items.append(
+                {
+                    "receipt_id": rid,
+                    "store": store_label,
+                    "purchase_date": date,
+                    "receipt_total_eur": total,
+                    **item,
+                }
+            )
+        print(f"OK ({len(result['items'])} items, total={total})")
+        if not result["items"]:
+            print("  [WARN] No item rows were extracted. Verify that the PDF has a readable text layer.")
+
     # --- Maxima PDFs ---
     maxima_dir = receipts_dir / "Maxima"
-    if "maxima" not in stores:
+    if only_single_receipt:
+        print("  [INFO] Single-receipt mode: skipping Maxima/Rimi folder scans.")
+    elif "maxima" not in stores:
         print("  [INFO] Skipping Maxima (not selected in --stores)")
     elif maxima_dir.exists():
         pdf_files = _resolve_session_maxima_pdfs(maxima_dir, maxima_purchases_csv)
@@ -329,7 +487,9 @@ def parse_all_receipts(
 
     # --- Rimi images (manual sidecar) ---
     rimi_dir = receipts_dir / "Rimi"
-    if "rimi" not in stores:
+    if only_single_receipt:
+        pass
+    elif "rimi" not in stores:
         print("  [INFO] Skipping Rimi (not selected in --stores)")
     elif rimi_dir.exists():
         rimi_rows = _load_rimi_manual(rimi_dir)

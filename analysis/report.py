@@ -21,7 +21,7 @@ from pathlib import Path
 BASELINE_CATEGORY = "Toidupoed"
 DEPOSIT_CATEGORY = "DEPOSIT"
 MUU_CATEGORY = "Muu"
-SOURCE_ORDER = ["deposit", "rule_match", "fallback_food", "unknown"]
+SOURCE_ORDER = ["deposit", "manual_memory", "rule_match", "fallback_food", "unknown"]
 
 
 def _pct(part: float, whole: float) -> str:
@@ -139,6 +139,8 @@ def generate_report(categorized_csv: Path, matched_csv: Path, out_dir: Path):
             matched_rule = str(it.get("category_rule", "") or "").strip()
             if category == DEPOSIT_CATEGORY:
                 source = "deposit"
+            elif str(matched_rule).strip().lower() == "manual_memory":
+                source = "manual_memory"
             elif matched_rule:
                 source = "rule_match"
             elif category == MUU_CATEGORY:
@@ -156,7 +158,10 @@ def generate_report(categorized_csv: Path, matched_csv: Path, out_dir: Path):
     }
     spend_rounding_diff = round(total_spend - sum(spend_src_eur.values()), 2)
     if abs(spend_rounding_diff) > 0:
-        present_non_deposit = [s for s in ("rule_match", "fallback_food", "unknown") if abs(spend_src_eur[s]) > 0]
+        present_non_deposit = [
+            s for s in ("manual_memory", "rule_match", "fallback_food", "unknown")
+            if abs(spend_src_eur[s]) > 0
+        ]
         correction_target = present_non_deposit[0] if present_non_deposit else "fallback_food"
         spend_src_eur[correction_target] = round(spend_src_eur[correction_target] + spend_rounding_diff, 2)
 
@@ -219,6 +224,7 @@ def generate_report(categorized_csv: Path, matched_csv: Path, out_dir: Path):
         f"  amount {total_paid:>8.2f} EUR (100.0%, incl. deposits)",
         sep,
         "METHODOLOGY NOTES (thesis / interpretation):",
+        "- manual_memory: category came from SQLite manual override memory; highest priority.",
         "- fallback_food: residual bucket for normal supermarket lines with no keyword hit;",
         "  default category is food by convention, not verified ground-truth product typing.",
         f"- unknown: low-information / non-product parser rows; category {MUU_CATEGORY} (not food).",

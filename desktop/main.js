@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const fs = require('fs').promises;
 const fsNative = require('fs');
 const path = require('path');
@@ -7,10 +7,19 @@ const { spawn } = require('child_process');
 const BANK_EXPORTS_DIR = 'bank_exports';
 const OUTPUT_DIR = 'output';
 const OUTPUT_SESSIONS_DIR = path.join(OUTPUT_DIR, 'sessions');
+const MEMORY_DB_NAME = 'manual_category_memory.db';
 let latestAnalysisOutDir = null;
 
 function repoRoot() {
   return path.resolve(__dirname, '..');
+}
+
+function analysisRoot(root = repoRoot()) {
+  return path.join(root, 'analysis');
+}
+
+function memoryDbPath(root = repoRoot()) {
+  return path.join(root, OUTPUT_DIR, MEMORY_DB_NAME);
 }
 
 function resolvePath(p) {
@@ -146,60 +155,102 @@ function runDownload(webContents, opts) {
   pipeProcess(child, webContents, afterClose);
 }
 
-function isSafeBankBasename(name) {
-  const s = String(name || '').trim();
+function isSafeBankCsvPath(p) {
+  const s = String(p || '').trim();
+  if (!s) return false;
+  if (!path.isAbsolute(s)) return false;
   if (!s.toLowerCase().endsWith('.csv')) return false;
-  if (s !== path.basename(s)) return false;
-  if (s.includes('..') || /[\\/]/.test(s)) return false;
-  return s.length > 0 && s.length < 512;
+  return fsNative.existsSync(s);
 }
 
 function runPipeline(webContents, opts) {
   const root = repoRoot();
-  const analysisDir = path.join(root, 'analysis');
+  const analysisDir = analysisRoot(root);
+  const memoryDb = memoryDbPath(root);
   const receipts = resolvePath('receipts');
-  const basename = String(opts.bankBasename || '').trim();
-  if (!isSafeBankBasename(basename)) {
-    webContents.send('job-log', '[error] Select a valid CSV file from the list.\n');
-    webContents.send('job-done', { code: 1, ok: false });
-    return;
-  }
-  const bank = path.join(root, BANK_EXPORTS_DIR, basename);
+  const mode = String(opts.mode || 'full').trim().toLowerCase();
+  const isSingleMode = mode === 'single';
+  const bankCsvPath = String(opts.bankCsvPath || '').trim();
   const sessionOut = createSessionOutputDir(root);
   const stores = String(opts.stores || 'all').toLowerCase();
   const storesArg = stores === 'maxima' || stores === 'rimi' || stores === 'all' ? stores : 'all';
   const maximaPurchasesCsv = path.join(receipts, 'Maxima', 'purchases.csv');
-  const receiptDateRange =
-    storesArg !== 'rimi' ? safeReadDateRangeFromPurchasesCsv(maximaPurchasesCsv) : null;
-  const bankDateRange = safeReadDateRangeFromBankCsv(bank);
-  const bankCoverage = analyzeDateCoverage(receiptDateRange, bankDateRange);
+  let bank = '';
+  let bankCoverage = null;
+  let singleReceiptPdf = '';
+  let singleReceiptStore = '';
+
+  if (isSingleMode) {
+    singleReceiptPdf = String(opts.singleReceiptPdfPath || '').trim();
+    singleReceiptStore = String(opts.singleReceiptStore || 'Selver').trim() || 'Selver';
+    if (!singleReceiptPdf || !path.isAbsolute(singleReceiptPdf) || !singleReceiptPdf.toLowerCase().endsWith('.pdf')) {
+      webContents.send('job-log', '[error] Select a valid absolute PDF path for single-receipt analysis.\n');
+      webContents.send('job-done', { code: 1, ok: false });
+      return;
+    }
+    if (!fsNative.existsSync(singleReceiptPdf)) {
+      webContents.send('job-log', `[error] Single receipt PDF not found: ${singleReceiptPdf}\n`);
+      webContents.send('job-done', { code: 1, ok: false });
+      return;
+    }
+  } else {
+    if (bankCsvPath && !isSafeBankCsvPath(bankCsvPath)) {
+      webContents.send('job-log', '[error] Selected bank CSV path is invalid or missing.\n');
+      webContents.send('job-done', { code: 1, ok: false });
+      return;
+    }
+    bank = bankCsvPath;
+    if (bank) {
+      const receiptDateRange =
+        storesArg !== 'rimi' ? safeReadDateRangeFromPurchasesCsv(maximaPurchasesCsv) : null;
+      const bankDateRange = safeReadDateRangeFromBankCsv(bank);
+      bankCoverage = analyzeDateCoverage(receiptDateRange, bankDateRange);
+    }
+  }
 
   const args = [
     '-3',
     'main.py',
     '--receipts',
     receipts,
-    '--bank',
-    bank,
     '--out',
     sessionOut,
+    '--memory-db',
+    memoryDb,
     '--stores',
     storesArg
   ];
 
-  if (storesArg !== 'rimi' && fsNative.existsSync(maximaPurchasesCsv)) {
+  if (isSingleMode) {
+    args.push('--single-receipt-pdf', singleReceiptPdf);
+    args.push('--single-receipt-store', singleReceiptStore);
+    args.push('--skip-bank-match');
+    webContents.send('job-log', `[info] Single-receipt mode: ${singleReceiptPdf}\n`);
+    webContents.send('job-log', `[info] Receipt store label: ${singleReceiptStore}\n`);
+  } else {
+    if (bank) {
+      args.push('--bank', bank);
+    } else {
+      args.push('--skip-bank-match');
+      webContents.send('job-log', '[info] Full mode without bank CSV: bank matching will be skipped.\n');
+    }
+  }
+
+  if (!isSingleMode && storesArg !== 'rimi' && fsNative.existsSync(maximaPurchasesCsv)) {
     args.push('--maxima-purchases-csv', maximaPurchasesCsv);
     webContents.send(
       'job-log',
       `[info] Analysis will use only Maxima receipts from this session: ${maximaPurchasesCsv}\n`
     );
-  } else if (storesArg !== 'rimi') {
+  } else if (!isSingleMode && storesArg !== 'rimi') {
     webContents.send(
       'job-log',
       '[warn] Maxima purchases.csv was not found — analysis will process all Maxima receipts from receipts/Maxima.\n'
     );
   }
-  emitBankCoverageGuardrail(webContents, bankCoverage, basename);
+  if (!isSingleMode && bank) {
+    emitBankCoverageGuardrail(webContents, bankCoverage, path.basename(bank));
+  }
   webContents.send('job-log', `[info] Session output directory: ${sessionOut}\n`);
   const child = spawn('py', args, {
     cwd: analysisDir,
@@ -213,10 +264,15 @@ function runPipeline(webContents, opts) {
         from: String(opts.from || '').trim(),
         to: String(opts.to || '').trim(),
         stores: storesArg,
-        bankBasename: basename,
+        mode: isSingleMode ? 'single' : 'full',
+        bankBasename: bank ? path.basename(bank) : '',
         bankPath: bank,
+        singleReceiptPdfPath: singleReceiptPdf,
+        singleReceiptStore,
         maximaPurchasesCsvUsed:
-          storesArg !== 'rimi' && fsNative.existsSync(maximaPurchasesCsv) ? maximaPurchasesCsv : '',
+          !isSingleMode && storesArg !== 'rimi' && fsNative.existsSync(maximaPurchasesCsv)
+            ? maximaPurchasesCsv
+            : '',
         bankCoverage
       });
     }
@@ -479,6 +535,7 @@ function writeSessionRunArtifacts(sessionOut, meta) {
       generatedAt: new Date().toISOString(),
       sessionOutDir: sessionOut,
       stores: meta.stores || 'all',
+      mode: meta.mode || 'full',
       selectedPeriod: {
         from: meta.from || '',
         to: meta.to || ''
@@ -486,6 +543,10 @@ function writeSessionRunArtifacts(sessionOut, meta) {
       bankCsv: {
         basename: meta.bankBasename || '',
         path: meta.bankPath || ''
+      },
+      singleReceipt: {
+        pdfPath: meta.singleReceiptPdfPath || '',
+        store: meta.singleReceiptStore || ''
       },
       maximaPurchasesCsvUsed: meta.maximaPurchasesCsvUsed || '',
       bankCoverage: meta.bankCoverage || null
@@ -576,9 +637,80 @@ function parseManualCorrectionsRows(rows) {
   }));
 }
 
+function parseJsonFromStdout(stdoutText) {
+  const text = String(stdoutText || '').trim();
+  if (!text) return null;
+  const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const candidates = lines.length ? [lines[lines.length - 1], text] : [text];
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+async function runMemoryLayerCommand(args, dbPath) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'py',
+      ['-3', 'memory_layer.py', '--db', dbPath, ...args],
+      {
+        cwd: analysisRoot(),
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+        shell: false
+      }
+    );
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+    child.on('error', (err) => reject(err));
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout.trim());
+      } else {
+        reject(new Error(`memory_layer exited with code ${code}: ${stderr || stdout}`));
+      }
+    });
+  });
+}
+
+async function importLegacyCorrectionsIfNeeded(legacyCsvPath, dbPath) {
+  const markerPath = `${legacyCsvPath}.sqlite_imported`;
+  if (!fsNative.existsSync(legacyCsvPath) || fsNative.existsSync(markerPath)) {
+    return { imported: 0, skipped: true };
+  }
+  const stdout = await runMemoryLayerCommand(['import-legacy-csv', '--csv', legacyCsvPath], dbPath);
+  const parsed = parseJsonFromStdout(stdout) || {};
+  await fs.writeFile(markerPath, `${new Date().toISOString()}\n`, 'utf-8');
+  return {
+    imported: Number(parsed.imported || 0),
+    skipped: false
+  };
+}
+
+async function loadManualCorrectionsFromMemory(itemsCategorizedPath, dbPath) {
+  if (!fsNative.existsSync(itemsCategorizedPath)) return [];
+  const stdout = await runMemoryLayerCommand(
+    ['get-session-corrections', '--categorized-csv', itemsCategorizedPath, '--out-json', '-'],
+    dbPath
+  );
+  const parsed = parseJsonFromStdout(stdout);
+  if (!Array.isArray(parsed)) return [];
+  return parseManualCorrectionsRows(parsed);
+}
+
 async function getResearchData(preferredOutDir) {
   const outDir = await resolveSummaryOutDir(preferredOutDir);
   const researchDir = path.join(outDir, 'research');
+  const memoryDb = memoryDbPath();
   const itemsRawPath = path.join(outDir, 'items_raw.csv');
   const itemsCategorizedPath = path.join(outDir, 'items_categorized.csv');
   const matchedPath = path.join(outDir, 'matched.csv');
@@ -605,7 +737,16 @@ async function getResearchData(preferredOutDir) {
     is_noise: detectNoiseRow(r.item_text),
     is_deposit: asBool(r.is_deposit)
   }));
-  const corrections = parseManualCorrectionsRows(correctionRows || []);
+  let corrections = [];
+  try {
+    await importLegacyCorrectionsIfNeeded(correctionsPath, memoryDb);
+    corrections = await loadManualCorrectionsFromMemory(itemsCategorizedPath, memoryDb);
+  } catch {
+    corrections = [];
+  }
+  if (!corrections.length) {
+    corrections = parseManualCorrectionsRows(correctionRows || []);
+  }
 
   const receiptsTotal = (matchedRows || []).length;
   const receiptsUnmatched = (matchedRows || []).filter(
@@ -639,7 +780,7 @@ async function getResearchData(preferredOutDir) {
       matched: Boolean(matchedRows),
       category_breakdown: Boolean(breakdownRows),
       category_source_breakdown: Boolean(sourceRows),
-      manual_corrections: Boolean(correctionRows)
+      manual_corrections: Boolean(corrections.length) || Boolean(correctionRows)
     },
     itemsRaw: rowsRaw,
     itemsCategorized: rowsCategorized,
@@ -663,24 +804,50 @@ async function getResearchData(preferredOutDir) {
 async function saveManualCorrections(preferredOutDir, corrections) {
   const outDir = await resolveSummaryOutDir(preferredOutDir);
   const researchDir = path.join(outDir, 'research');
-  const correctionsPath = path.join(researchDir, 'manual_corrections.csv');
+  const categorizedPath = path.join(outDir, 'items_categorized.csv');
+  const dbPath = memoryDbPath();
   const rows = Array.isArray(corrections) ? corrections : [];
   const normalized = rows
     .map((r) => ({
       receipt_id: String(r.receipt_id || ''),
+      store: String(r.store || ''),
       item_text: String(r.item_text || ''),
       manual_category: String(r.manual_category || ''),
       note: String(r.note || ''),
       updated_at: String(r.updated_at || new Date().toISOString())
     }))
-    .filter((r) => r.receipt_id && r.item_text && r.manual_category);
-
-  await writeCsvRows(
-    correctionsPath,
-    ['receipt_id', 'item_text', 'manual_category', 'note', 'updated_at'],
-    normalized
-  );
-  return { ok: true, outputDir: outDir, path: correctionsPath, saved: normalized.length };
+    .filter((r) => r.item_text && r.manual_category);
+  if (!fsNative.existsSync(categorizedPath)) {
+    return {
+      ok: false,
+      reason: 'missing-items-categorized',
+      error: `Missing file: ${categorizedPath}`
+    };
+  }
+  await fs.mkdir(researchDir, { recursive: true });
+  const tmpJsonPath = path.join(researchDir, `manual_corrections_payload_${Date.now()}_${process.pid}.json`);
+  await fs.writeFile(tmpJsonPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf-8');
+  try {
+    const stdout = await runMemoryLayerCommand(
+      ['sync-session-corrections', '--categorized-csv', categorizedPath, '--corrections-json', tmpJsonPath],
+      dbPath
+    );
+    const parsed = parseJsonFromStdout(stdout) || {};
+    return {
+      ok: true,
+      outputDir: outDir,
+      dbPath,
+      saved: normalized.length,
+      upserted: Number(parsed.upserted || 0),
+      deleted: Number(parsed.deleted || 0)
+    };
+  } finally {
+    try {
+      await fs.unlink(tmpJsonPath);
+    } catch {
+      // noop
+    }
+  }
 }
 
 async function exportResearchReport(preferredOutDir, payload = {}) {
@@ -893,6 +1060,28 @@ ipcMain.handle('list-bank-csv-files', async () => {
   return names
     .filter((n) => n.toLowerCase().endsWith('.csv'))
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+});
+
+ipcMain.handle('pick-single-receipt-pdf', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'PDF files', extensions: ['pdf'] }]
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return { ok: false, canceled: true };
+  }
+  return { ok: true, path: String(result.filePaths[0] || '') };
+});
+
+ipcMain.handle('pick-bank-csv', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'CSV files', extensions: ['csv'] }]
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return { ok: false, canceled: true };
+  }
+  return { ok: true, path: String(result.filePaths[0] || '') };
 });
 
 ipcMain.handle('get-analysis-summary', async (_event, payload) => {

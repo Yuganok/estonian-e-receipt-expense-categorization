@@ -23,6 +23,11 @@ import csv
 import re
 from pathlib import Path
 
+try:
+    from memory_layer import lookup_manual_category
+except ImportError:  # pragma: no cover - support package import from repo root
+    from .memory_layer import lookup_manual_category
+
 
 # ---------------------------------------------------------------------------
 # Keyword dictionaries
@@ -179,6 +184,7 @@ _REFUND_LINE_RULES: list[tuple[re.Pattern[str], str]] = [
 
 # category_source labels for thesis-facing transparency
 SOURCE_DEPOSIT = "deposit"
+SOURCE_MANUAL_MEMORY = "manual_memory"
 SOURCE_RULE_MATCH = "rule_match"
 SOURCE_FALLBACK_FOOD = "fallback_food"
 SOURCE_UNKNOWN = "unknown"
@@ -285,7 +291,7 @@ def _looks_like_unknown_row(item_text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
-def categorize_items(items_in: Path, items_out: Path):
+def categorize_items(items_in: Path, items_out: Path, memory_db_path: Path | str | None = None):
     """
     Read items_raw.csv, add 'category' column, write items_categorized.csv.
     """
@@ -301,18 +307,35 @@ def categorize_items(items_in: Path, items_out: Path):
         in_fieldnames = list(reader.fieldnames or [])
         for row in reader:
             item_text = row.get("item_text", "")
+            store = row.get("store", "")
             is_dep = row.get("is_deposit", "False").lower() in ("true", "1", "yes")
-            cat, matched_kw = classify(item_text, is_dep)
-            if cat == "DEPOSIT":
-                source = SOURCE_DEPOSIT
-            elif matched_kw:
-                source = SOURCE_RULE_MATCH
+            manual_category = lookup_manual_category(
+                store=store,
+                item_text=item_text,
+                db_path=memory_db_path,
+            )
+            if manual_category:
+                cat = manual_category
+                matched_kw = "manual_memory"
+                source = SOURCE_MANUAL_MEMORY
             elif _looks_like_unknown_row(item_text):
-                cat = MUU_CATEGORY
-                matched_kw = ""
-                source = SOURCE_UNKNOWN
+                cat, matched_kw = classify(item_text, is_dep)
+                if cat == "DEPOSIT":
+                    source = SOURCE_DEPOSIT
+                elif matched_kw:
+                    source = SOURCE_RULE_MATCH
+                else:
+                    cat = MUU_CATEGORY
+                    matched_kw = ""
+                    source = SOURCE_UNKNOWN
             else:
-                source = SOURCE_FALLBACK_FOOD
+                cat, matched_kw = classify(item_text, is_dep)
+                if cat == "DEPOSIT":
+                    source = SOURCE_DEPOSIT
+                elif matched_kw:
+                    source = SOURCE_RULE_MATCH
+                else:
+                    source = SOURCE_FALLBACK_FOOD
             row["category"] = cat
             row["category_rule"] = matched_kw
             row["category_source"] = source
