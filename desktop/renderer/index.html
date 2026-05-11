@@ -38,8 +38,15 @@
           <label class="field span-2">
             <span id="labelAnalysisMode">Analysis mode</span>
             <select id="analysisModeSelect" aria-label="Analysis mode">
-              <option id="analysisModeFullOption" value="full">Full pipeline (with bank CSV)</option>
-              <option id="analysisModeSingleOption" value="single">Single receipt (no bank CSV)</option>
+              <option id="analysisModeFullOption" value="full">Full pipeline</option>
+              <option id="analysisModeSingleOption" value="single">Single receipt</option>
+            </select>
+          </label>
+          <label class="field span-2">
+            <span id="labelCategorizationMode">Categorization mode</span>
+            <select id="categorizationModeSelect" aria-label="Categorization mode">
+              <option id="categorizationModeRuleOption" value="rule">Rule</option>
+              <option id="categorizationModeGeminiOption" value="gemini">Gemini</option>
             </select>
           </label>
           <label id="fullDateFromField" class="field">
@@ -272,6 +279,24 @@
       </section>
     </section>
   </main>
+
+  <div id="rerunConfirmBackdrop" class="modal-backdrop hidden" aria-hidden="true">
+    <div
+      id="rerunConfirmDialog"
+      class="modal-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rerunConfirmTitle"
+      aria-describedby="rerunConfirmBody"
+    >
+      <h2 id="rerunConfirmTitle" class="modal-title"></h2>
+      <p id="rerunConfirmBody" class="modal-body"></p>
+      <div class="modal-actions">
+        <button type="button" id="rerunConfirmCancel" class="btn ghost"></button>
+        <button type="button" id="rerunConfirmOk" class="btn primary"></button>
+      </div>
+    </div>
+  </div>
 
   <script src="../node_modules/chart.js/dist/chart.umd.js"></script>
   <script src="renderer.js"></script>

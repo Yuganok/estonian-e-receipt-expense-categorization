@@ -10,6 +10,7 @@ const fullDateToField = document.getElementById('fullDateToField');
 const fullStoreField = document.getElementById('fullStoreField');
 const fullBankField = document.getElementById('fullBankField');
 const analysisModeSelect = document.getElementById('analysisModeSelect');
+const categorizationModeSelect = document.getElementById('categorizationModeSelect');
 const singleReceiptRow = document.getElementById('singleReceiptRow');
 const singleReceiptPdfPath = document.getElementById('singleReceiptPdfPath');
 const btnPickSingleReceiptPdf = document.getElementById('btnPickSingleReceiptPdf');
@@ -32,6 +33,9 @@ const labelStore = document.getElementById('labelStore');
 const labelAnalysisMode = document.getElementById('labelAnalysisMode');
 const analysisModeFullOption = document.getElementById('analysisModeFullOption');
 const analysisModeSingleOption = document.getElementById('analysisModeSingleOption');
+const labelCategorizationMode = document.getElementById('labelCategorizationMode');
+const categorizationModeRuleOption = document.getElementById('categorizationModeRuleOption');
+const categorizationModeGeminiOption = document.getElementById('categorizationModeGeminiOption');
 const labelSingleReceiptPdf = document.getElementById('labelSingleReceiptPdf');
 const labelSingleReceiptStore = document.getElementById('labelSingleReceiptStore');
 const storeMaximaOption = document.getElementById('storeMaximaOption');
@@ -99,6 +103,16 @@ const thBaselineTotal = document.getElementById('thBaselineTotal');
 const thBaselineBankDate = document.getElementById('thBaselineBankDate');
 const thBaselineBankAmount = document.getElementById('thBaselineBankAmount');
 const thBaselineConfidence = document.getElementById('thBaselineConfidence');
+const headingEvaluationComparison = document.getElementById('headingEvaluationComparison');
+const evaluationGoldPath = document.getElementById('evaluationGoldPath');
+const btnPickEvaluationGold = document.getElementById('btnPickEvaluationGold');
+const btnRunEvaluation = document.getElementById('btnRunEvaluation');
+const tableEvaluationBody = document.querySelector('#tableEvaluation tbody');
+const thEvalApproach = document.getElementById('thEvalApproach');
+const thEvalAccuracy = document.getElementById('thEvalAccuracy');
+const thEvalMacroF1 = document.getElementById('thEvalMacroF1');
+const thEvalRowsUsed = document.getElementById('thEvalRowsUsed');
+const thEvalHybridRouting = document.getElementById('thEvalHybridRouting');
 
 const resultsEmpty = document.getElementById('resultsEmpty');
 const resultsContent = document.getElementById('resultsContent');
@@ -110,6 +124,12 @@ const categoryLegend = document.getElementById('categoryLegend');
 const matchLegend = document.getElementById('matchLegend');
 const categoryCanvas = document.getElementById('categoryChart');
 const matchCanvas = document.getElementById('matchChart');
+
+const rerunConfirmBackdrop = document.getElementById('rerunConfirmBackdrop');
+const rerunConfirmTitle = document.getElementById('rerunConfirmTitle');
+const rerunConfirmBody = document.getElementById('rerunConfirmBody');
+const rerunConfirmCancel = document.getElementById('rerunConfirmCancel');
+const rerunConfirmOk = document.getElementById('rerunConfirmOk');
 
 const chartPalette = [
   '#4F8CFF',
@@ -131,6 +151,7 @@ let currentLang = 'et';
 let researchData = null;
 let manualCorrectionsMap = new Map();
 let currentPage = 'data';
+let evaluationComparison = [];
 
 const PAGE_DEFS = {
   data: { tab: tabData, section: pageData },
@@ -157,8 +178,11 @@ const UI_STRINGS = {
     fromDate: 'Alguskuupäev',
     toDate: 'Lõppkuupäev',
     analysisMode: 'Analüüsi režiim',
-    analysisModeFull: 'Täispipeline (pangaväljavõttega)',
-    analysisModeSingle: 'Üksik tšekk (ilma pangaväljavõtteta)',
+    analysisModeFull: 'Täispipeline',
+    analysisModeSingle: 'Üksik tšekk',
+    categorizationMode: 'Kategoriseerimise mootor',
+    categorizationModeRule: 'Rule',
+    categorizationModeGemini: 'Gemini',
     store: 'Pood (allalaadimine ja analüüs)',
     storeMaxima: 'Maxima',
     singleReceiptPdfLabel: 'Ühe tšeki PDF',
@@ -203,6 +227,17 @@ const UI_STRINGS = {
     sourceRuleMatch: 'Reeglipõhine vaste',
     sourceFallbackFood: 'Vaikimisi toit',
     sourceUnknown: 'Tundmatu (mitte toode)',
+    evaluationComparison: 'Evaluation võrdlus',
+    evaluationGoldPlaceholder: 'Vali gold CSV evaluation jaoks',
+    pickEvaluationGold: 'Vali gold CSV',
+    runEvaluation: 'Käivita evaluation (valitud režiim)',
+    pickEvaluationGoldFailed: 'Gold CSV valimine ebaõnnestus.',
+    evaluationNeedsGold: 'Vali gold CSV enne evaluation käivitamist.',
+    evalApproach: 'Lähenemine',
+    evalAccuracy: 'Täpsus',
+    evalMacroF1: 'Macro-F1',
+    evalRowsUsed: 'Ridade arv',
+    evalHybridRouting: 'Hybrid routing',
     matchLegendMatched: 'Sobitatud',
     matchLegendUnmatched: 'Sobitamata',
     bankCsvPlaceholder: 'Vali pangaväljavõtte CSV (valikuline)',
@@ -210,6 +245,12 @@ const UI_STRINGS = {
     pickBankCsvFailed: 'CSV valimine ebaõnnestus.',
     pickSingleReceiptFailed: 'PDF valimine ebaõnnestus.',
     singleModeNeedsPdf: 'Vali üksik tšeki PDF enne analüüsi käivitamist.',
+    rerunConfirmTitle: 'Käivitada analüüs uuesti?',
+    rerunConfirmBody:
+      'Parandused on salvestatud mällu. Uuesti analüüsimisel uuendatakse kategooriad ja aruanne.',
+    rerunConfirmCancel: 'Tühista',
+    rerunConfirmOk: 'Käivita analüüs',
+    rerunAfterSaveStarted: 'Parandused salvestatud. Käivitan analüüsi uuesti...\n',
     parseSearchPlaceholder: 'Otsi tooteteksti...',
     catSearchPlaceholder: 'Otsi kategoriseeritud ridu...',
     parseFilterAll: 'Kõik read',
@@ -245,8 +286,11 @@ const UI_STRINGS = {
     fromDate: 'Start date',
     toDate: 'End date',
     analysisMode: 'Analysis mode',
-    analysisModeFull: 'Full pipeline (with bank CSV)',
-    analysisModeSingle: 'Single receipt (no bank CSV)',
+    analysisModeFull: 'Full pipeline',
+    analysisModeSingle: 'Single receipt',
+    categorizationMode: 'Categorization engine',
+    categorizationModeRule: 'Rule',
+    categorizationModeGemini: 'Gemini',
     store: 'Store (download and analysis)',
     storeMaxima: 'Maxima',
     singleReceiptPdfLabel: 'Single receipt PDF',
@@ -291,6 +335,17 @@ const UI_STRINGS = {
     sourceRuleMatch: 'Rule match',
     sourceFallbackFood: 'Fallback to food',
     sourceUnknown: 'Unknown (non-product)',
+    evaluationComparison: 'Evaluation comparison',
+    evaluationGoldPlaceholder: 'Select gold CSV for evaluation',
+    pickEvaluationGold: 'Browse gold CSV',
+    runEvaluation: 'Run evaluation (selected mode)',
+    pickEvaluationGoldFailed: 'Failed to select gold CSV.',
+    evaluationNeedsGold: 'Select gold CSV before running evaluation.',
+    evalApproach: 'Approach',
+    evalAccuracy: 'Accuracy',
+    evalMacroF1: 'Macro-F1',
+    evalRowsUsed: 'Rows used',
+    evalHybridRouting: 'Hybrid routing',
     matchLegendMatched: 'Matched',
     matchLegendUnmatched: 'Unmatched',
     bankCsvPlaceholder: 'Select bank CSV file (optional)',
@@ -298,6 +353,12 @@ const UI_STRINGS = {
     pickBankCsvFailed: 'Failed to select CSV file.',
     pickSingleReceiptFailed: 'Failed to select PDF file.',
     singleModeNeedsPdf: 'Select a single receipt PDF before running analysis.',
+    rerunConfirmTitle: 'Re-run analysis?',
+    rerunConfirmBody:
+      'Corrections are saved to memory. Re-running analysis updates categories and reports.',
+    rerunConfirmCancel: 'Cancel',
+    rerunConfirmOk: 'Run analysis',
+    rerunAfterSaveStarted: 'Corrections saved. Re-running analysis...\n',
     parseSearchPlaceholder: 'Search item text...',
     catSearchPlaceholder: 'Search categorized items...',
     parseFilterAll: 'All rows',
@@ -342,6 +403,66 @@ function t(key) {
   return UI_STRINGS.en[key] || key;
 }
 
+function refreshRerunConfirmModalI18n() {
+  if (!rerunConfirmTitle || !rerunConfirmBody || !rerunConfirmCancel || !rerunConfirmOk) return;
+  rerunConfirmTitle.textContent = t('rerunConfirmTitle');
+  rerunConfirmBody.textContent = t('rerunConfirmBody');
+  rerunConfirmCancel.textContent = t('rerunConfirmCancel');
+  rerunConfirmOk.textContent = t('rerunConfirmOk');
+}
+
+function openRerunAnalysisConfirm() {
+  return new Promise((resolve) => {
+    if (!rerunConfirmBackdrop || !rerunConfirmOk || !rerunConfirmCancel) {
+      resolve(false);
+      return;
+    }
+    refreshRerunConfirmModalI18n();
+    const previousFocus = document.activeElement;
+    const dialogEl = document.getElementById('rerunConfirmDialog');
+
+    const finalize = (value) => {
+      rerunConfirmBackdrop.classList.add('hidden');
+      rerunConfirmBackdrop.setAttribute('aria-hidden', 'true');
+      document.removeEventListener('keydown', onKeydown);
+      rerunConfirmBackdrop.removeEventListener('click', onBackdropClick);
+      rerunConfirmOk.removeEventListener('click', onOk);
+      rerunConfirmCancel.removeEventListener('click', onCancel);
+      if (dialogEl) dialogEl.removeEventListener('click', onPanelClick);
+      if (previousFocus && typeof previousFocus.focus === 'function') {
+        try {
+          previousFocus.focus();
+        } catch {
+          // ignore
+        }
+      }
+      resolve(value);
+    };
+
+    const onOk = () => finalize(true);
+    const onCancel = () => finalize(false);
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    const onBackdropClick = (e) => {
+      if (e.target === rerunConfirmBackdrop) onCancel();
+    };
+    const onPanelClick = (e) => {
+      e.stopPropagation();
+    };
+
+    rerunConfirmOk.addEventListener('click', onOk);
+    rerunConfirmCancel.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKeydown);
+    rerunConfirmBackdrop.addEventListener('click', onBackdropClick);
+    if (dialogEl) dialogEl.addEventListener('click', onPanelClick);
+
+    rerunConfirmBackdrop.classList.remove('hidden');
+    rerunConfirmBackdrop.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => rerunConfirmOk.focus());
+  });
+}
+
 function applyI18n() {
   document.documentElement.lang = currentLang;
   languageSelect.value = currentLang;
@@ -355,6 +476,9 @@ function applyI18n() {
   labelAnalysisMode.textContent = t('analysisMode');
   analysisModeFullOption.textContent = t('analysisModeFull');
   analysisModeSingleOption.textContent = t('analysisModeSingle');
+  if (labelCategorizationMode) labelCategorizationMode.textContent = t('categorizationMode');
+  if (categorizationModeRuleOption) categorizationModeRuleOption.textContent = t('categorizationModeRule');
+  if (categorizationModeGeminiOption) categorizationModeGeminiOption.textContent = t('categorizationModeGemini');
   labelStore.textContent = t('store');
   if (storeMaximaOption) storeMaximaOption.textContent = t('storeMaxima');
   if (labelSingleReceiptPdf) labelSingleReceiptPdf.textContent = t('singleReceiptPdfLabel');
@@ -419,6 +543,17 @@ function applyI18n() {
   if (thBaselineBankDate) thBaselineBankDate.textContent = t('tableBankDate');
   if (thBaselineBankAmount) thBaselineBankAmount.textContent = t('tableBankAmount');
   if (thBaselineConfidence) thBaselineConfidence.textContent = t('tableConfidence');
+  if (headingEvaluationComparison) headingEvaluationComparison.textContent = t('evaluationComparison');
+  if (evaluationGoldPath) evaluationGoldPath.placeholder = t('evaluationGoldPlaceholder');
+  if (btnPickEvaluationGold) btnPickEvaluationGold.textContent = t('pickEvaluationGold');
+  if (btnRunEvaluation) btnRunEvaluation.textContent = t('runEvaluation');
+  if (thEvalApproach) thEvalApproach.textContent = t('evalApproach');
+  if (thEvalAccuracy) thEvalAccuracy.textContent = t('evalAccuracy');
+  if (thEvalMacroF1) thEvalMacroF1.textContent = t('evalMacroF1');
+  if (thEvalRowsUsed) thEvalRowsUsed.textContent = t('evalRowsUsed');
+  if (thEvalHybridRouting) thEvalHybridRouting.textContent = t('evalHybridRouting');
+
+  refreshRerunConfirmModalI18n();
 
   setLogExpanded(logExpanded);
 }
@@ -482,8 +617,11 @@ function setLogExpanded(expanded) {
 function setBusy(on) {
   busy = on;
   analysisModeSelect.disabled = on;
+  if (categorizationModeSelect) categorizationModeSelect.disabled = on;
   btnPickSingleReceiptPdf.disabled = on;
   singleReceiptStoreInput.disabled = on;
+  if (btnPickEvaluationGold) btnPickEvaluationGold.disabled = on;
+  if (btnRunEvaluation) btnRunEvaluation.disabled = on;
   updatePipelineButtons();
   btnClear.disabled = on;
   updateModeUi();
@@ -498,12 +636,14 @@ function updatePipelineButtons() {
 }
 
 function readForm() {
+  const categorizationMode = String(categorizationModeSelect?.value || 'rule').trim().toLowerCase();
   return {
     from: fromDate.value.trim(),
     to: toDate.value.trim(),
     bankCsvPath: bankCsvPathInput ? bankCsvPathInput.value.trim() : '',
     stores: 'maxima',
     mode: isSingleMode() ? 'single' : 'full',
+    categorizationMode: categorizationMode === 'gemini' ? 'gemini' : 'rule',
     singleReceiptPdfPath: String(singleReceiptPdfPath.value || '').trim(),
     singleReceiptStore: String(singleReceiptStoreInput.value || '').trim() || 'Selver'
   };
@@ -822,6 +962,39 @@ function renderBaselineSection() {
   }
 }
 
+function renderEvaluationTable(rows) {
+  if (!tableEvaluationBody) return;
+  tableEvaluationBody.innerHTML = '';
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    const routing = row.hybridRouting
+      ? `${Number(row.hybridRouting.rows_resolved_by_rule || 0)} rule / ${Number(
+          row.hybridRouting.rows_sent_to_llm || 0
+        )} llm`
+      : '-';
+    tr.innerHTML = `
+      <td>${String(row.approach || '')}</td>
+      <td>${Number(row.accuracy || 0).toFixed(4)}</td>
+      <td>${Number(row.macroF1 || 0).toFixed(4)}</td>
+      <td>${Number(row.rowsUsed || 0)}</td>
+      <td>${routing}</td>
+    `;
+    tableEvaluationBody.appendChild(tr);
+  }
+}
+
+async function refreshEvaluationComparison() {
+  const payload = lastOutputDir ? { outputDir: lastOutputDir } : undefined;
+  const res = await window.electronAPI.getEvaluationComparison(payload);
+  if (!res || !res.ok) {
+    evaluationComparison = [];
+    renderEvaluationTable([]);
+    return;
+  }
+  evaluationComparison = Array.isArray(res.rows) ? res.rows : [];
+  renderEvaluationTable(evaluationComparison);
+}
+
 function sourceLabel(source) {
   const key = String(source || '').trim().toLowerCase();
   if (key === 'deposit') return t('sourceDeposit');
@@ -898,8 +1071,69 @@ async function saveCorrections() {
         res.deleted || 0
       )})\n`
     );
+    const shouldRerun = await openRerunAnalysisConfirm();
+    if (shouldRerun) {
+      const form = readForm();
+      if (!validatePipeline(form)) return;
+      await runPipelineAnalysis(form, t('rerunAfterSaveStarted'));
+    }
   } else {
     appendLog(`[error] Could not save manual corrections: ${res && res.error ? res.error : 'unknown'}\n`);
+  }
+}
+
+async function runPipelineAnalysis(form, startLogText = '--- Analysis (Python) ---\n') {
+  setBusy(true);
+  const done = bindJobSession();
+  appendLog(startLogText);
+  appendLog(`[info] Categorization mode: ${form.categorizationMode}\n`);
+  window.electronAPI.startPipeline({
+    mode: form.mode,
+    categorizationMode: form.categorizationMode,
+    bankCsvPath: form.bankCsvPath,
+    stores: form.stores,
+    from: form.from,
+    to: form.to,
+    singleReceiptPdfPath: form.singleReceiptPdfPath,
+    singleReceiptStore: form.singleReceiptStore
+  });
+  const result = await done;
+  if (result && result.outputDir) lastOutputDir = String(result.outputDir);
+  appendLog(result.ok ? '\nDone.\n' : `\nFinished with error code ${result.code}.\n`);
+  setBusy(false);
+  if (result.ok) {
+    await refreshResults();
+    await refreshResearchData();
+    await refreshEvaluationComparison();
+  }
+}
+
+async function runEvaluationComparison() {
+  const goldPath = String(evaluationGoldPath?.value || '').trim();
+  if (!goldPath) {
+    appendLog(`${t('evaluationNeedsGold')}\n`);
+    return;
+  }
+  setBusy(true);
+  const done = bindJobSession();
+  const form = readForm();
+  const selectedMode = form.categorizationMode === 'gemini' ? 'gemini' : 'rule';
+  const approaches = selectedMode === 'gemini' ? ['llm'] : ['rule'];
+  const provider = selectedMode === 'gemini' ? 'gemini' : 'ollama';
+  appendLog('--- Evaluation comparison ---\n');
+  appendLog(`[info] Evaluation mode: ${selectedMode}\n`);
+  window.electronAPI.startEvaluation({
+    outputDir: lastOutputDir,
+    goldCsvPath: goldPath,
+    approaches,
+    provider
+  });
+  const result = await done;
+  if (result && result.outputDir) lastOutputDir = String(result.outputDir);
+  appendLog(result.ok ? '\nEvaluation complete.\n' : `\nEvaluation failed with code ${result.code}.\n`);
+  setBusy(false);
+  if (result.ok) {
+    await refreshEvaluationComparison();
   }
 }
 
@@ -946,12 +1180,14 @@ async function refreshResults() {
     kpiReceipts.textContent = '0';
     kpiMatched.textContent = '0%';
     kpiTopCategory.textContent = '-';
+    renderEvaluationTable([]);
     return;
   }
 
   resultsEmpty.classList.add('hidden');
   resultsContent.classList.remove('hidden');
   renderResults(summary);
+  await refreshEvaluationComparison();
 }
 
 analysisModeSelect.addEventListener('change', updateModeUi);
@@ -983,6 +1219,19 @@ if (btnPickBankCsv) {
   });
 }
 
+if (btnPickEvaluationGold) {
+  btnPickEvaluationGold.addEventListener('click', async () => {
+    try {
+      const res = await window.electronAPI.pickEvaluationGoldCsv();
+      if (res && res.ok && res.path && evaluationGoldPath) {
+        evaluationGoldPath.value = String(res.path);
+      }
+    } catch (_e) {
+      appendLog(`${t('pickEvaluationGoldFailed')}\n`);
+    }
+  });
+}
+
 btnPickSingleReceiptPdf.addEventListener('click', async () => {
   try {
     const res = await window.electronAPI.pickSingleReceiptPdf();
@@ -1000,12 +1249,18 @@ btnResearchReload.addEventListener('click', () => {
 });
 
 btnSaveCorrections.addEventListener('click', () => {
-  saveCorrections();
+  void saveCorrections();
 });
 
 btnExportResearch.addEventListener('click', () => {
   exportResearch();
 });
+
+if (btnRunEvaluation) {
+  btnRunEvaluation.addEventListener('click', () => {
+    void runEvaluationComparison();
+  });
+}
 
 parseSearch.addEventListener('input', () => renderParsingTable());
 parseFilterKind.addEventListener('change', () => renderParsingTable());
@@ -1032,26 +1287,7 @@ btnDownload.addEventListener('click', async () => {
 btnPipeline.addEventListener('click', async () => {
   const form = readForm();
   if (!validatePipeline(form)) return;
-  setBusy(true);
-  const done = bindJobSession();
-  appendLog('--- Analysis (Python) ---\n');
-  window.electronAPI.startPipeline({
-    mode: form.mode,
-    bankCsvPath: form.bankCsvPath,
-    stores: form.stores,
-    from: form.from,
-    to: form.to,
-    singleReceiptPdfPath: form.singleReceiptPdfPath,
-    singleReceiptStore: form.singleReceiptStore
-  });
-  const result = await done;
-  if (result && result.outputDir) lastOutputDir = String(result.outputDir);
-  appendLog(result.ok ? '\nDone.\n' : `\nFinished with error code ${result.code}.\n`);
-  setBusy(false);
-  if (result.ok) {
-    await refreshResults();
-    await refreshResearchData();
-  }
+  await runPipelineAnalysis(form);
 });
 
 btnBoth.addEventListener('click', async () => {
@@ -1078,6 +1314,7 @@ btnBoth.addEventListener('click', async () => {
   appendLog('\n--- Step 2: Analysis ---\n');
   window.electronAPI.startPipeline({
     mode: 'full',
+    categorizationMode: form.categorizationMode,
     bankCsvPath: form.bankCsvPath,
     stores: form.stores,
     from: form.from,

@@ -174,6 +174,10 @@ function runPipeline(webContents, opts) {
   const sessionOut = createSessionOutputDir(root);
   const stores = String(opts.stores || 'all').toLowerCase();
   const storesArg = stores === 'maxima' || stores === 'rimi' || stores === 'all' ? stores : 'all';
+  const requestedCategorizationMode = String(opts.categorizationMode || 'rule').trim().toLowerCase();
+  const categorizationMode = requestedCategorizationMode === 'gemini' ? 'gemini' : 'rule';
+  const llmProvider = String(opts.llmProvider || 'gemini').trim().toLowerCase() || 'gemini';
+  const llmModel = String(opts.llmModel || 'gemini-2.5-flash').trim() || 'gemini-2.5-flash';
   const maximaPurchasesCsv = path.join(receipts, 'Maxima', 'purchases.csv');
   let bank = '';
   let bankCoverage = null;
@@ -218,8 +222,14 @@ function runPipeline(webContents, opts) {
     '--memory-db',
     memoryDb,
     '--stores',
-    storesArg
+    storesArg,
+    '--categorization-mode',
+    categorizationMode
   ];
+  if (categorizationMode === 'gemini') {
+    args.push('--llm-provider', llmProvider);
+    args.push('--llm-model', llmModel);
+  }
 
   if (isSingleMode) {
     args.push('--single-receipt-pdf', singleReceiptPdf);
@@ -251,6 +261,10 @@ function runPipeline(webContents, opts) {
   if (!isSingleMode && bank) {
     emitBankCoverageGuardrail(webContents, bankCoverage, path.basename(bank));
   }
+  webContents.send('job-log', `[info] Categorization mode: ${categorizationMode}\n`);
+  if (categorizationMode === 'gemini') {
+    webContents.send('job-log', `[info] LLM provider/model: ${llmProvider}/${llmModel}\n`);
+  }
   webContents.send('job-log', `[info] Session output directory: ${sessionOut}\n`);
   const child = spawn('py', args, {
     cwd: analysisDir,
@@ -269,6 +283,9 @@ function runPipeline(webContents, opts) {
         bankPath: bank,
         singleReceiptPdfPath: singleReceiptPdf,
         singleReceiptStore,
+        categorizationMode,
+        llmProvider: categorizationMode === 'gemini' ? llmProvider : '',
+        llmModel: categorizationMode === 'gemini' ? llmModel : '',
         maximaPurchasesCsvUsed:
           !isSingleMode && storesArg !== 'rimi' && fsNative.existsSync(maximaPurchasesCsv)
             ? maximaPurchasesCsv
@@ -277,6 +294,103 @@ function runPipeline(webContents, opts) {
       });
     }
     return { outputDir: sessionOut };
+  });
+}
+
+function runProcessWithLogs(command, args, cwd, webContents) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd,
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      shell: false
+    });
+    let hadError = false;
+    child.stdout.on('data', (d) => webContents.send('job-log', d.toString()));
+    child.stderr.on('data', (d) => webContents.send('job-log', d.toString()));
+    child.on('error', (err) => {
+      hadError = true;
+      webContents.send('job-log', `[spawn error] ${err.message}\n`);
+    });
+    child.on('close', (code) => {
+      if (hadError && code === 0) {
+        resolve(1);
+      } else {
+        resolve(Number(code || 0));
+      }
+    });
+  });
+}
+
+async function runEvaluation(webContents, opts) {
+  const root = repoRoot();
+  const analysisDir = analysisRoot(root);
+  const outputDirHint = String(opts.outputDir || '').trim();
+  const outputDir = await resolveSummaryOutDir(outputDirHint);
+  const goldCsvPath = String(opts.goldCsvPath || '').trim();
+  const ollamaModel = String(opts.ollamaModel || 'llama3.2:3b').trim() || 'llama3.2:3b';
+  const ollamaUrl = String(opts.ollamaUrl || 'http://127.0.0.1:11434').trim() || 'http://127.0.0.1:11434';
+  const ollamaTimeout = Number(opts.ollamaTimeout || 30);
+  const requestedProvider = String(opts.provider || 'ollama').trim().toLowerCase();
+  const validProviders = new Set(['ollama', 'gemini', 'deepseek', 'openai', 'claude']);
+  const evalProvider = validProviders.has(requestedProvider) ? requestedProvider : 'ollama';
+  const requestedApproaches = Array.isArray(opts.approaches) ? opts.approaches : [];
+  const validApproaches = ['rule', 'llm', 'hybrid'];
+  const approaches = requestedApproaches
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter((v) => validApproaches.includes(v));
+  const runApproaches = approaches.length ? Array.from(new Set(approaches)) : ['rule', 'llm', 'hybrid'];
+  const evalOutDir = path.join(outputDir, 'research', 'evaluation');
+
+  if (!goldCsvPath || !path.isAbsolute(goldCsvPath) || !goldCsvPath.toLowerCase().endsWith('.csv')) {
+    webContents.send('job-log', '[error] Select a valid absolute gold CSV path for evaluation.\n');
+    webContents.send('job-done', { code: 1, ok: false });
+    return;
+  }
+  if (!fsNative.existsSync(goldCsvPath)) {
+    webContents.send('job-log', `[error] Gold CSV not found: ${goldCsvPath}\n`);
+    webContents.send('job-done', { code: 1, ok: false });
+    return;
+  }
+
+  fsNative.mkdirSync(evalOutDir, { recursive: true });
+  webContents.send('job-log', `[info] Evaluation output directory: ${evalOutDir}\n`);
+  webContents.send('job-log', `[info] Evaluation provider: ${evalProvider}\n`);
+  let finalCode = 0;
+  for (const approach of runApproaches) {
+    webContents.send('job-log', `\n--- Evaluation: ${approach} ---\n`);
+    const args = [
+      '-3',
+      'evaluate_classifier.py',
+      '--gold',
+      goldCsvPath,
+      '--out',
+      evalOutDir,
+      '--approach',
+      approach,
+      '--provider',
+      evalProvider,
+      '--ollama-model',
+      ollamaModel,
+      '--ollama-url',
+      ollamaUrl,
+      '--ollama-timeout',
+      String(ollamaTimeout)
+    ];
+    const code = await runProcessWithLogs('py', args, analysisDir, webContents);
+    if (code !== 0) {
+      finalCode = code;
+      webContents.send('job-log', `[error] Evaluation failed for approach=${approach}, code=${code}\n`);
+      break;
+    }
+  }
+
+  webContents.send('job-done', {
+    code: finalCode,
+    ok: finalCode === 0,
+    outputDir: outputDir,
+    evaluationOutDir: evalOutDir,
+    approaches: runApproaches,
+    provider: evalProvider
   });
 }
 
@@ -958,6 +1072,37 @@ async function resolveSummaryOutDir(preferredOutDir) {
   return path.join(repoRoot(), OUTPUT_DIR);
 }
 
+async function getEvaluationComparison(preferredOutDir) {
+  const outDir = await resolveSummaryOutDir(preferredOutDir);
+  const evalDir = path.join(outDir, 'research', 'evaluation');
+  const approaches = ['rule', 'llm', 'hybrid'];
+  const rows = [];
+  for (const approach of approaches) {
+    const metricsPath = path.join(evalDir, `evaluation_metrics.${approach}.json`);
+    if (!fsNative.existsSync(metricsPath)) continue;
+    try {
+      const raw = fsNative.readFileSync(metricsPath, 'utf-8');
+      const data = JSON.parse(raw);
+      rows.push({
+        approach,
+        accuracy: Number(data?.main_eval?.accuracy || 0),
+        macroF1: Number(data?.main_eval?.macro_f1 || 0),
+        rowsUsed: Number(data?.main_eval?.rows_used || 0),
+        hybridRouting: data?.hybrid_routing || null,
+        metricsPath
+      });
+    } catch {
+      // ignore broken file
+    }
+  }
+  return {
+    ok: true,
+    outputDir: outDir,
+    evaluationOutDir: evalDir,
+    rows
+  };
+}
+
 async function getAnalysisSummary(preferredOutDir) {
   const root = repoRoot();
   const outDir = await resolveSummaryOutDir(preferredOutDir);
@@ -1053,6 +1198,10 @@ ipcMain.on('job-pipeline', (event, opts) => {
   runPipeline(event.sender, opts);
 });
 
+ipcMain.on('job-evaluation', (event, opts) => {
+  runEvaluation(event.sender, opts || {});
+});
+
 ipcMain.handle('list-bank-csv-files', async () => {
   const dir = path.join(repoRoot(), BANK_EXPORTS_DIR);
   await fs.mkdir(dir, { recursive: true });
@@ -1084,6 +1233,17 @@ ipcMain.handle('pick-bank-csv', async () => {
   return { ok: true, path: String(result.filePaths[0] || '') };
 });
 
+ipcMain.handle('pick-evaluation-gold-csv', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'CSV files', extensions: ['csv'] }]
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return { ok: false, canceled: true };
+  }
+  return { ok: true, path: String(result.filePaths[0] || '') };
+});
+
 ipcMain.handle('get-analysis-summary', async (_event, payload) => {
   try {
     const preferredOutDir =
@@ -1095,6 +1255,22 @@ ipcMain.handle('get-analysis-summary', async (_event, payload) => {
     return {
       ok: false,
       empty: true,
+      reason: 'error',
+      error: String(error && error.message ? error.message : error)
+    };
+  }
+});
+
+ipcMain.handle('get-evaluation-comparison', async (_event, payload) => {
+  try {
+    const preferredOutDir =
+      payload && typeof payload === 'object' && payload.outputDir
+        ? String(payload.outputDir)
+        : undefined;
+    return await getEvaluationComparison(preferredOutDir);
+  } catch (error) {
+    return {
+      ok: false,
       reason: 'error',
       error: String(error && error.message ? error.message : error)
     };
