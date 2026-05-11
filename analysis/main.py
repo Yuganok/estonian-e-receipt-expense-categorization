@@ -37,6 +37,7 @@ from pathlib import Path
 
 from parse_receipts import parse_all_receipts
 from categorize import categorize_items
+from categorize_llm import categorize_items_llm
 from match_bank import match_to_bank
 from report import generate_report
 
@@ -137,6 +138,28 @@ def main():
         default="",
         help="Optional path to SQLite DB with manual category overrides",
     )
+    parser.add_argument(
+        "--categorization-mode",
+        default="rule",
+        choices=["rule", "gemini"],
+        help="Categorization mode: rule (default) or gemini",
+    )
+    parser.add_argument(
+        "--llm-provider",
+        default="gemini",
+        help="LLM provider for non-rule categorization mode",
+    )
+    parser.add_argument(
+        "--llm-model",
+        default="gemini-2.5-flash",
+        help="LLM model for non-rule categorization mode",
+    )
+    parser.add_argument(
+        "--llm-timeout",
+        type=float,
+        default=30.0,
+        help="LLM request timeout in seconds for non-rule mode",
+    )
     args = parser.parse_args()
 
     receipts_dir = Path(args.receipts)
@@ -179,11 +202,25 @@ def main():
                 "Check whether PDF text layout is supported."
             )
 
+    categorization_mode = str(args.categorization_mode or "rule").strip().lower()
     print("\n" + "=" * 60)
-    print("STEP 2: Categorising items (rule-based)")
+    if categorization_mode == "rule":
+        print("STEP 2: Categorising items (rule-based)")
+    else:
+        print("STEP 2: Categorising items (Gemini LLM)")
     print("=" * 60)
     categorized_path = out_dir / "items_categorized.csv"
-    categorize_items(items_path, categorized_path, memory_db_path=args.memory_db)
+    if categorization_mode == "rule":
+        categorize_items(items_path, categorized_path, memory_db_path=args.memory_db)
+    else:
+        categorize_items_llm(
+            items_in=items_path,
+            items_out=categorized_path,
+            memory_db_path=args.memory_db,
+            llm_provider=args.llm_provider,
+            llm_model=args.llm_model,
+            llm_timeout_seconds=float(args.llm_timeout),
+        )
 
     print("\n" + "=" * 60)
     print("STEP 3: Matching receipts to bank transactions")
