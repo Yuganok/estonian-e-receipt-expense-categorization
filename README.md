@@ -1,4 +1,32 @@
-# E-Receipt Ledger (Desktop)
+# E-Receipt Ledger
+
+Desktop app that downloads Estonian grocery e-receipts, parses every line item, sorts purchases into expense categories and builds a spending report. Built as my bachelor's thesis project (IT Systems Development, University of Tartu, Narva College, 2026).
+
+## Highlights
+
+- **End-to-end pipeline:** Electron UI -> Node.js + Playwright receipt download (Maxima, login confirmed by the user via Smart-ID) -> Python parsing of PDF receipts (pypdf) -> categorization -> optional matching with bank transactions -> CSV and text reports.
+- **Rule-based classifier:** 87% accuracy, macro-F1 0.78 on 200 hand-labelled receipt lines.
+- **LLM benchmark:** compared seven LLMs (GPT mini, Claude Haiku, Gemini 2.5 Flash, DeepSeek Chat, and Mistral, Llama 3.1 8B, Llama 3.2 3B running locally via Ollama) against the rule-based baseline on the same gold set; Gemini 2.5 Flash is integrated as an optional categorizer.
+- **Reproducible runs:** every analysis is stored in its own session folder with outputs, a run manifest and manual corrections made in the UI.
+
+## Tech stack
+
+| Part | Technology |
+|---|---|
+| Desktop UI | Electron, HTML/CSS/JS |
+| Receipt download | Node.js, Playwright |
+| Parsing and categorization | Python, pypdf, scikit-learn |
+| LLM comparison | OpenAI, Anthropic, Google Gemini and DeepSeek APIs; local models via Ollama |
+
+## Repository structure
+
+- `desktop/` - Electron app (UI and orchestration of the Python pipeline)
+- `src/` - receipt downloader CLI (Playwright, Maxima provider)
+- `analysis/` - parsing, rule-based and LLM categorization, bank matching, evaluation scripts
+
+---
+
+## Detailed guide
 
 Desktop app for downloading and analyzing grocery e-receipts in Estonia.
 The Electron UI orchestrates a Python pipeline that parses receipt lines, assigns expense categories, optionally matches receipts to bank transactions, and generates report artifacts.
